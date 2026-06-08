@@ -23,6 +23,72 @@ That split creates duplicated config, no shared eval, and fragile handoffs betwe
 
 ---
 
+## Problems it solves
+
+Document-heavy teams hit the same bottlenecks: manual review is slow, tools do not talk to each other, and quality is hard to measure. This platform targets those gaps directly.
+
+### HR and recruiting
+
+| Problem | How this platform helps | Endpoint |
+|---------|-------------------------|----------|
+| Recruiters manually scan hundreds of resumes against a job post | Returns a match score, overlapping skills, and missing keywords in seconds | `POST /v1/match/resume` |
+| Hiring managers get inconsistent shortlists across reviewers | Same scoring logic for every candidate, reproducible and testable | `POST /v1/match/resume` |
+| ATS exports are long; nobody reads the full packet before a screen | Produces a short extractive summary of resume or cover letter text | `POST /v1/text/summarize` |
+| Sensitive candidate data sits in shared drives with no audit trail | Single API with structured logs and a path to metrics (M5) | All endpoints |
+
+**Example workflow:** Upload a job description once, batch-match incoming resumes, summarize top candidates, and rank by score before the first interview.
+
+### Compliance and legal review
+
+| Problem | How this platform helps | Endpoint |
+|---------|-------------------------|----------|
+| Contracts must be checked for terms like NDA, liability, or PII before sharing | Regex search highlights or frames every match across pages | `POST /v1/pdf/annotate` |
+| Documents go external with confidential clauses still visible | Redact matched text (SSN, account numbers, client names) before export | `POST /v1/pdf/annotate` |
+| Reviewers use ad hoc PDF tools with no batch mode | One API call per file or folder-style batch processing (M2) | `POST /v1/pdf/annotate` |
+| Legal ops cannot prove what was redacted and when | Annotated output plus request logging (M5) | `POST /v1/pdf/annotate` |
+
+**Example workflow:** Run `CONFIDENTIAL` and SSN patterns across a PDF bundle, redact hits, then hand off clean files to external counsel.
+
+### Research and knowledge intake
+
+| Problem | How this platform helps | Endpoint |
+|---------|-------------------------|----------|
+| Analysts ingest long reports, papers, or meeting notes | Extractive summary to 3 to 5 sentences for triage | `POST /v1/text/summarize` |
+| Literature review spans PDFs and plain text | PDF annotation for key terms plus summarization for narrative sections | PDF + summary endpoints |
+| Team cannot agree on what "relevant" means | Offline eval harness with labeled fixtures (M6) | `make eval` |
+
+**Example workflow:** Summarize a 20-page report, highlight defined terms in the source PDF, and share both artifacts in a research ticket.
+
+### Operations and internal tooling
+
+| Problem | How this platform helps | Endpoint |
+|---------|-------------------------|----------|
+| Each team built its own Python script; nothing deploys the same way | One Flask service, one Dockerfile (M5), one Makefile | All endpoints |
+| No health check before load balancer or CI deploy | `GET /health` for readiness probes today | `GET /health` |
+| Leadership asks "is the matcher good enough?" with no numbers | Benchmark reports from the eval suite (M6) | `make eval` |
+| Engineers fear changing one script breaks another workflow | Shared package (`docintel`) with isolated service modules and pytest | All modules |
+
+### Before vs after
+
+| Before | After |
+|--------|-------|
+| 3 scripts, 3 configs, 3 ways to run | 1 API, 1 `make run`, 1 deploy unit |
+| Manual PDF redaction in desktop apps | Programmatic search, highlight, redact via HTTP |
+| Gut-feel resume screening | Scored match with explainable keyword overlap |
+| Read full documents to decide relevance | Summarize first, deep-read only what matters |
+| No tests, no eval, no metrics | pytest per milestone, eval harness, request metrics (M5 to M6) |
+
+### Who this is for
+
+- **Recruiting ops** triaging high-volume applicant pipelines
+- **Compliance analysts** preparing documents for external review
+- **Research teams** summarizing intake before deep analysis
+- **Platform engineers** who need a small, measurable document AI service to extend
+
+Not a fit for: real-time collaborative editing, OCR on scanned images, or generative long-form writing. Those are out of scope for v1.
+
+---
+
 ## What you get
 
 | Capability | Endpoint | Status |

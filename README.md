@@ -7,7 +7,7 @@
 
 Unified Flask API for document workflows: PDF annotation, resume-to-job matching, and extractive summarization. One service, shared config, tests, and documented tradeoffs.
 
-**Status:** Milestone 4 shipped (extractive summarization API). Docker and metrics land in M5.
+**Status:** Milestone 5 shipped (Docker, JSON logging, request metrics). Eval harness lands in M6.
 
 ---
 
@@ -34,7 +34,7 @@ Document-heavy teams hit the same bottlenecks: manual review is slow, tools do n
 | Recruiters manually scan hundreds of resumes against a job post | Returns a match score, overlapping skills, and missing keywords in seconds | `POST /v1/match/resume` |
 | Hiring managers get inconsistent shortlists across reviewers | Same scoring logic for every candidate, reproducible and testable | `POST /v1/match/resume` |
 | ATS exports are long; nobody reads the full packet before a screen | Produces a short extractive summary of resume or cover letter text | `POST /v1/text/summarize` |
-| Sensitive candidate data sits in shared drives with no audit trail | Single API with structured logs and a path to metrics (M5) | All endpoints |
+| Sensitive candidate data sits in shared drives with no audit trail | Single API with structured JSON logs and request metrics | All endpoints |
 
 **Example workflow:** Upload a job description once, batch-match incoming resumes, summarize top candidates, and rank by score before the first interview.
 
@@ -45,7 +45,7 @@ Document-heavy teams hit the same bottlenecks: manual review is slow, tools do n
 | Contracts must be checked for terms like NDA, liability, or PII before sharing | Regex search highlights or frames every match across pages | `POST /v1/pdf/annotate` |
 | Documents go external with confidential clauses still visible | Redact matched text (SSN, account numbers, client names) before export | `POST /v1/pdf/annotate` |
 | Reviewers use ad hoc PDF tools with no batch mode | One API call per file or folder-style batch processing (M2) | `POST /v1/pdf/annotate` |
-| Legal ops cannot prove what was redacted and when | Annotated output plus request logging (M5) | `POST /v1/pdf/annotate` |
+| Legal ops cannot prove what was redacted and when | Annotated output plus structured request logs | `POST /v1/pdf/annotate` |
 
 **Example workflow:** Run `CONFIDENTIAL` and SSN patterns across a PDF bundle, redact hits, then hand off clean files to external counsel.
 
@@ -63,7 +63,7 @@ Document-heavy teams hit the same bottlenecks: manual review is slow, tools do n
 
 | Problem | How this platform helps | Endpoint |
 |---------|-------------------------|----------|
-| Each team built its own Python script; nothing deploys the same way | One Flask service, one Dockerfile (M5), one Makefile | All endpoints |
+| Each team built its own Python script; nothing deploys the same way | One Flask service, one Dockerfile, one Makefile | All endpoints |
 | No health check before load balancer or CI deploy | `GET /health` for readiness probes today | `GET /health` |
 | Leadership asks "is the matcher good enough?" with no numbers | Benchmark reports from the eval suite (M6) | `make eval` |
 | Engineers fear changing one script breaks another workflow | Shared package (`docintel`) with isolated service modules and pytest | All modules |
@@ -76,7 +76,7 @@ Document-heavy teams hit the same bottlenecks: manual review is slow, tools do n
 | Manual PDF redaction in desktop apps | Programmatic search, highlight, redact via HTTP |
 | Gut-feel resume screening | Scored match with explainable keyword overlap |
 | Read full documents to decide relevance | Summarize first, deep-read only what matters |
-| No tests, no eval, no metrics | pytest per milestone, eval harness, request metrics (M5 to M6) |
+| No tests, no eval, no metrics | pytest per milestone, eval harness, live request metrics |
 
 ### Who this is for
 
@@ -97,7 +97,7 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 | PDF search and annotation | `POST /v1/pdf/annotate` | Available |
 | Resume vs job matching | `POST /v1/match/resume` | Available |
 | Extractive summarization | `POST /v1/text/summarize` | Available |
-| Docker and request metrics | `GET /metrics` | Milestone 5 |
+| Docker and request metrics | `GET /metrics` | Available |
 | Offline eval harness | `make eval` | Milestone 6 |
 
 ---
@@ -123,7 +123,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.4.0"
+  "version": "0.5.0"
 }
 ```
 
@@ -137,6 +137,16 @@ CLI alternative:
 
 ```bash
 docintel --host 127.0.0.1 --port 5000
+```
+
+Docker:
+
+```bash
+cp .env.example .env
+make docker-up
+curl http://127.0.0.1:5000/health
+make docker-logs
+make docker-down
 ```
 
 ---
@@ -283,6 +293,40 @@ Example response:
 | `text` | Yes | Source plain text |
 | `sentences` | No | Number of summary sentences (default 3, max 20) |
 
+### Metrics and observability (available)
+
+Every request is logged as JSON and counted in memory. Use this for local debugging and load balancer health checks.
+
+```bash
+curl http://127.0.0.1:5000/metrics
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "service": "document-intelligence-platform",
+  "version": "0.5.0",
+  "total_requests": 42,
+  "total_errors": 2,
+  "avg_latency_ms": 18.4,
+  "requests_per_second": 0.12,
+  "uptime_seconds": 360.5,
+  "requests_by_endpoint": {
+    "health": 10,
+    "pdf.annotate": 20,
+    "match.match_resume": 8
+  },
+  "requests_by_status": {
+    "200": 40,
+    "400": 2
+  }
+}
+```
+
+**Note:** metrics are per process. With multiple Gunicorn workers, aggregate externally or use one worker for demos.
+
 ---
 
 ## Configuration
@@ -293,6 +337,10 @@ Example response:
 | `DOCINTEL_PORT` | `5000` | HTTP port |
 | `DOCINTEL_DEBUG` | `false` | Flask debug mode |
 | `DOCINTEL_UPLOAD_DIR` | `uploads` | Temp upload storage |
+| `DOCINTEL_LOG_LEVEL` | `INFO` | JSON log verbosity |
+| `WEB_CONCURRENCY` | `2` | Gunicorn workers in Docker |
+
+Copy `.env.example` to `.env` for local or Docker runs.
 
 ---
 
@@ -310,7 +358,12 @@ document-intelligence-platform/
     services/pdf/       PyMuPDF annotation engine
     services/matching/  TF-IDF resume scoring engine
     services/summary/   TextRank extractive summarizer
+    ops/                JSON logging and request metrics
+    wsgi.py             Gunicorn entry point
   tests/                Pytest suite
+  Dockerfile
+  docker-compose.yml
+  .env.example
   docs/
     ROADMAP.md          Milestone plan and commit sequence
     adr/                Architecture decision records
@@ -329,6 +382,14 @@ make install    # reinstall after dependency changes
 make run        # start API on localhost:5000
 make test       # run pytest
 make clean      # remove caches and build artifacts
+make docker-up  # build and start API in Docker
+make docker-down
+```
+
+Production (Gunicorn):
+
+```bash
+gunicorn --bind 0.0.0.0:5000 --workers 2 docintel.wsgi:app
 ```
 
 Install as a package:
@@ -347,7 +408,7 @@ pip install -e ".[dev]"
 | M2 | PDF search and annotation | Done |
 | M3 | Resume-to-job similarity scoring | Done |
 | M4 | Extractive summarization | Done |
-| M5 | Docker, structured logging, metrics | Planned |
+| M5 | Docker, structured logging, metrics | Done |
 | M6 | Offline eval harness and benchmarks | Planned |
 | M7 | Production checklist and ADRs | Planned |
 

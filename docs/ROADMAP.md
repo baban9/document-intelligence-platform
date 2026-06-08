@@ -58,18 +58,14 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 
 ## Milestone 5: Operations layer
 
-**Issue title:** `M5: Dockerize service and add request metrics`
+**Issue title:** `M5: Dockerize service and add request metrics`  
+**Status:** Done
 
 **Deliverables:**
-- `Dockerfile`, `docker-compose.yml`
-- Structured JSON logging
-- Request counters and latency tracking
-- `.env.example`
-
-**Suggested commit message:**
-```
-Add Docker deployment and structured request logging
-```
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`
+- Structured JSON logging (`docintel.ops.logging`)
+- `GET /metrics` with request counters and latency tracking
+- `.env.example`, Gunicorn WSGI entry (`docintel.wsgi`)
 
 ---
 

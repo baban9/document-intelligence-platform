@@ -7,7 +7,7 @@
 
 Unified Flask API for document workflows: PDF annotation, resume-to-job matching, and extractive summarization. One service, shared config, tests, and documented tradeoffs.
 
-**Status:** Milestone 3 shipped (resume matching API). Summarization lands in M4.
+**Status:** Milestone 4 shipped (extractive summarization API). Docker and metrics land in M5.
 
 ---
 
@@ -96,7 +96,7 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 | Service health | `GET /health` | Available |
 | PDF search and annotation | `POST /v1/pdf/annotate` | Available |
 | Resume vs job matching | `POST /v1/match/resume` | Available |
-| Extractive summarization | `POST /v1/text/summarize` | Milestone 4 |
+| Extractive summarization | `POST /v1/text/summarize` | Available |
 | Docker and request metrics | `GET /metrics` | Milestone 5 |
 | Offline eval harness | `make eval` | Milestone 6 |
 
@@ -123,7 +123,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
 ```
 
@@ -248,13 +248,40 @@ Example response:
 | `job_description` | Yes | Job posting plain text |
 | `top_keywords` | No | Max keywords returned per list (default 25, max 100) |
 
-### Summarization (M4, planned)
+### Summarization (available)
+
+Extractively summarize plain text using TextRank sentence ranking. Selected sentences stay in original document order.
 
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/text/summarize \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "sentences": 3}'
+  -d '{
+    "text": "Machine learning helps teams automate document review. Extractive summarization selects important sentences. TextRank ranks sentences using a similarity graph.",
+    "sentences": 2
+  }'
 ```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "summary": "Machine learning helps teams automate document review. TextRank ranks sentences using a similarity graph.",
+  "sentences": [
+    "Machine learning helps teams automate document review.",
+    "TextRank ranks sentences using a similarity graph."
+  ],
+  "sentence_count": 2,
+  "source_sentence_count": 3
+}
+```
+
+**Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `text` | Yes | Source plain text |
+| `sentences` | No | Number of summary sentences (default 3, max 20) |
 
 ---
 
@@ -279,8 +306,10 @@ document-intelligence-platform/
     cli.py              CLI entry point
     routes/pdf.py       PDF annotation HTTP endpoints
     routes/match.py     Resume matching HTTP endpoints
+    routes/text.py      Text summarization HTTP endpoints
     services/pdf/       PyMuPDF annotation engine
     services/matching/  TF-IDF resume scoring engine
+    services/summary/   TextRank extractive summarizer
   tests/                Pytest suite
   docs/
     ROADMAP.md          Milestone plan and commit sequence
@@ -317,7 +346,7 @@ pip install -e ".[dev]"
 | M1 | Project scaffold, health endpoint, tests | Done |
 | M2 | PDF search and annotation | Done |
 | M3 | Resume-to-job similarity scoring | Done |
-| M4 | Extractive summarization | Planned |
+| M4 | Extractive summarization | Done |
 | M5 | Docker, structured logging, metrics | Planned |
 | M6 | Offline eval harness and benchmarks | Planned |
 | M7 | Production checklist and ADRs | Planned |

@@ -45,18 +45,14 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 
 ## Milestone 4: Text summarization
 
-**Issue title:** `M4: Add extractive summarization endpoint`
+**Issue title:** `M4: Add extractive summarization endpoint`  
+**Status:** Done
 
 **Deliverables:**
-- TextRank-style summarizer in `docintel/services/summary.py`
+- TextRank summarizer in `docintel/services/summary/`
 - `POST /v1/text/summarize`
 - Configurable sentence count
-- Tests on short fixture text
-
-**Suggested commit message:**
-```
-Add extractive summarization endpoint with sentence limit control
-```
+- Unit and route tests
 
 ---
 

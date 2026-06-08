@@ -4,7 +4,10 @@ from flask import Flask, jsonify
 
 from docintel import __version__
 from docintel.config import Config
+from docintel.ops.logging import configure_logging
+from docintel.ops.middleware import register_request_hooks
 from docintel.routes.match import match_bp
+from docintel.routes.ops import ops_bp
 from docintel.routes.pdf import pdf_bp
 from docintel.routes.text import text_bp
 
@@ -12,6 +15,9 @@ from docintel.routes.text import text_bp
 def create_app(config: type[Config] = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config)
+
+    configure_logging(config.LOG_LEVEL)
+    register_request_hooks(app)
 
     @app.get("/health")
     def health():
@@ -26,5 +32,6 @@ def create_app(config: type[Config] = Config) -> Flask:
     app.register_blueprint(pdf_bp)
     app.register_blueprint(match_bp)
     app.register_blueprint(text_bp)
+    app.register_blueprint(ops_bp)
 
     return app

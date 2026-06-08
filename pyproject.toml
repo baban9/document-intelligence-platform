@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel"
-version = "0.6.0"
+version = "0.7.0"
 description = "Document intelligence platform: PDF annotation, resume matching, and text summarization."
 readme = "README.md"
 license = {text = "MIT"}
@@ -41,9 +41,14 @@ ocr = [
     "opencv-python-headless>=4.10.0",
     "torch>=2.4.1",
 ]
+ui = [
+    "gradio>=4.44.0",
+    "requests>=2.32.3",
+]
 
 [project.scripts]
 docintel = "docintel.cli:main"
+docintel-ui = "docintel.ui:launch_ui"
 
 [project.urls]
 Homepage = "https://github.com/baban9/document-intelligence-platform"

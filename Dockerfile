@@ -12,7 +12,8 @@ WORKDIR /app
 COPY pyproject.toml requirements.txt README.md LICENSE ./
 COPY src ./src
 
-RUN pip install --upgrade pip && pip install -e .
+RUN pip install --upgrade pip && pip install -e ".[ocr]" \
+    && python -m spacy download en_core_web_sm
 
 RUN mkdir -p /app/uploads
 

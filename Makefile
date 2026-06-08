@@ -1,4 +1,4 @@
-.PHONY: setup install run test clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr install run test clean docker-build docker-up docker-down docker-logs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -9,6 +9,10 @@ setup:
 	python3 -m venv .venv
 	$(PIP) install --upgrade pip
 	$(PIP) install -e ".[dev]"
+
+setup-ocr:
+	$(PIP) install -e ".[ocr]"
+	$(PYTHON) -m spacy download en_core_web_sm
 
 install:
 	$(PIP) install -e ".[dev]"

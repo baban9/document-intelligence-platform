@@ -7,7 +7,7 @@
 
 Unified Flask API for document workflows: PDF annotation, resume-to-job matching, and extractive summarization. One service, shared config, tests, and documented tradeoffs.
 
-**Status:** Milestone 5 shipped (Docker, JSON logging, request metrics). Eval harness lands in M6.
+**Status:** Milestone 5 shipped plus OCR + Presidio sensitive PDF detection for scanned documents.
 
 ---
 
@@ -95,6 +95,8 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 |------------|----------|--------|
 | Service health | `GET /health` | Available |
 | PDF search and annotation | `POST /v1/pdf/annotate` | Available |
+| Scanned PDF PII detection (OCR + Presidio) | `POST /v1/pdf/detect-sensitive` | Available |
+| Presidio entity catalog | `GET /v1/pdf/entities` | Available |
 | Resume vs job matching | `POST /v1/match/resume` | Available |
 | Extractive summarization | `POST /v1/text/summarize` | Available |
 | Docker and request metrics | `GET /metrics` | Available |
@@ -108,8 +110,11 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 make setup
+make setup-ocr
 make run
 ```
+
+`make setup-ocr` installs EasyOCR, Presidio, and the spaCy English model for scanned PDF PII detection.
 
 Verify the service:
 
@@ -123,7 +128,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.5.0"
+  "version": "0.6.0"
 }
 ```
 
@@ -168,19 +173,59 @@ Modular monolith: one deployable Flask app with separate service modules inside 
     |  service  |           |  service  |           |  service  |
     +-----------+           +-----------+           +-----------+
           |                       |                       |
-    PyMuPDF search          TF-IDF scoring           TextRank-style
-    highlight/redact        skill overlap            extractive output
+    PyMuPDF + EasyOCR       TF-IDF scoring           TextRank-style
+    Presidio PII boxes      skill overlap            extractive output
 ```
 
 **Design choice:** start as a monolith, not microservices. All three features share CPU-bound Python workloads, similar latency targets, and the same logging and deployment needs. Module boundaries make a future split mechanical if load or ownership diverges.
 
-Read the full decision record: [docs/adr/001-modular-monolith.md](docs/adr/001-modular-monolith.md)
+Read the decision records: [modular monolith](docs/adr/001-modular-monolith.md), [OCR + Presidio pipeline](docs/adr/002-ocr-presidio-pipeline.md)
 
 ---
 
 ## API reference
 
-### PDF annotation (available)
+### Sensitive PDF detection (available)
+
+For scanned PDFs where native text extraction is empty, the service falls back to **EasyOCR (English)**, runs **Microsoft Presidio** for PII, and returns a new PDF with highlights or redactions on the exact bounding boxes. An invisible text layer can be embedded so the output stays searchable.
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/pdf/detect-sensitive \
+  -F "file=@scanned_contract.pdf" \
+  -F "action=Highlight" \
+  -o marked_contract.pdf
+```
+
+JSON report with findings and download link:
+
+```bash
+curl -X POST "http://127.0.0.1:5000/v1/pdf/detect-sensitive?format=json" \
+  -F "file=@scanned_contract.pdf" \
+  -F "action=Redact" \
+  -F "entities=EMAIL_ADDRESS,PHONE_NUMBER,US_SSN,CREDIT_CARD,PERSON"
+```
+
+List supported Presidio entities (extend with custom recognizers):
+
+```bash
+curl http://127.0.0.1:5000/v1/pdf/entities
+```
+
+**Default Presidio entities:** email, phone, US SSN, credit card, bank account, driver license, passport, person, location, date, IP, IBAN, medical license, URL.
+
+**Form fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `file` | Yes | PDF upload |
+| `action` | No | `Highlight` (default), `Redact`, `Frame`, `Underline`, `Squiggly`, `Strikeout` |
+| `entities` | No | Comma-separated Presidio entity types (defaults to preset list) |
+| `pattern` | No | Extra regex pattern on top of Presidio |
+| `force_ocr` | No | `true` to OCR every page even when text layer exists |
+| `add_text_layer` | No | `true` (default) embeds invisible OCR text for search |
+| `min_score` | No | Presidio confidence threshold (default `0.35`) |
+
+### PDF regex annotation (available)
 
 Search a PDF with a regex pattern and apply an annotation action.
 
@@ -307,7 +352,7 @@ Example response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "total_requests": 42,
   "total_errors": 2,
   "avg_latency_ms": 18.4,
@@ -355,7 +400,7 @@ document-intelligence-platform/
     routes/pdf.py       PDF annotation HTTP endpoints
     routes/match.py     Resume matching HTTP endpoints
     routes/text.py      Text summarization HTTP endpoints
-    services/pdf/       PyMuPDF annotation engine
+    services/pdf/       PyMuPDF, EasyOCR, Presidio PII pipeline
     services/matching/  TF-IDF resume scoring engine
     services/summary/   TextRank extractive summarizer
     ops/                JSON logging and request metrics
@@ -378,6 +423,7 @@ document-intelligence-platform/
 
 ```bash
 make setup      # create venv and install editable package
+make setup-ocr  # add EasyOCR + Presidio + spaCy model
 make install    # reinstall after dependency changes
 make run        # start API on localhost:5000
 make test       # run pytest

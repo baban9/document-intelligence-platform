@@ -32,18 +32,14 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 
 ## Milestone 3: Resume matching
 
-**Issue title:** `M3: Add resume-to-job similarity scoring`
+**Issue title:** `M3: Add resume-to-job similarity scoring`  
+**Status:** Done
 
 **Deliverables:**
-- TF-IDF matcher in `docintel/services/matching.py`
+- TF-IDF matcher in `docintel/services/matching/`
 - `POST /v1/match/resume`
-- Returns score, matched skills, missing keywords
-- Fixture-based tests
-
-**Suggested commit message:**
-```
-Add resume-to-job matching endpoint with TF-IDF scoring
-```
+- Returns score, matched keywords, missing keywords
+- Unit and route tests
 
 ---
 

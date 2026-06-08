@@ -7,7 +7,7 @@
 
 Unified Flask API for document workflows: PDF annotation, resume-to-job matching, and extractive summarization. One service, shared config, tests, and documented tradeoffs.
 
-**Status:** Milestone 2 shipped (PDF annotation API). Resume matching and summarization land in M3 and M4.
+**Status:** Milestone 3 shipped (resume matching API). Summarization lands in M4.
 
 ---
 
@@ -95,7 +95,7 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 |------------|----------|--------|
 | Service health | `GET /health` | Available |
 | PDF search and annotation | `POST /v1/pdf/annotate` | Available |
-| Resume vs job matching | `POST /v1/match/resume` | Milestone 3 |
+| Resume vs job matching | `POST /v1/match/resume` | Available |
 | Extractive summarization | `POST /v1/text/summarize` | Milestone 4 |
 | Docker and request metrics | `GET /metrics` | Milestone 5 |
 | Offline eval harness | `make eval` | Milestone 6 |
@@ -123,7 +123,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
 ```
 
@@ -215,13 +215,38 @@ curl -X POST "http://127.0.0.1:5000/v1/pdf/annotate?format=json" \
 
 Optional form fields: `pages` (comma-separated page indexes, zero-based).
 
-### Resume matching (M3, planned)
+### Resume matching (available)
+
+Score a resume against a job description using TF-IDF cosine similarity. Returns a percentage score plus matched and missing keywords from the job text.
 
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/match/resume \
   -H "Content-Type: application/json" \
-  -d '{"resume": "...", "job_description": "..."}'
+  -d '{
+    "resume": "Python engineer with Flask, pytest, Docker, and NLP experience.",
+    "job_description": "Seeking Python developer with Flask, Docker, API, and NLP skills.",
+    "top_keywords": 10
+  }'
 ```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "score": 42.15,
+  "matched_keywords": ["python", "flask", "docker", "nlp"],
+  "missing_keywords": ["developer", "api", "skills"]
+}
+```
+
+**Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `resume` | Yes | Resume plain text |
+| `job_description` | Yes | Job posting plain text |
+| `top_keywords` | No | Max keywords returned per list (default 25, max 100) |
 
 ### Summarization (M4, planned)
 
@@ -253,7 +278,9 @@ document-intelligence-platform/
     config.py           Environment-based settings
     cli.py              CLI entry point
     routes/pdf.py       PDF annotation HTTP endpoints
+    routes/match.py     Resume matching HTTP endpoints
     services/pdf/       PyMuPDF annotation engine
+    services/matching/  TF-IDF resume scoring engine
   tests/                Pytest suite
   docs/
     ROADMAP.md          Milestone plan and commit sequence
@@ -289,7 +316,7 @@ pip install -e ".[dev]"
 |-----------|-------|--------|
 | M1 | Project scaffold, health endpoint, tests | Done |
 | M2 | PDF search and annotation | Done |
-| M3 | Resume-to-job similarity scoring | Planned |
+| M3 | Resume-to-job similarity scoring | Done |
 | M4 | Extractive summarization | Planned |
 | M5 | Docker, structured logging, metrics | Planned |
 | M6 | Offline eval harness and benchmarks | Planned |

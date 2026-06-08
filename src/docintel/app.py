@@ -6,6 +6,7 @@ from docintel import __version__
 from docintel.config import Config
 from docintel.routes.match import match_bp
 from docintel.routes.pdf import pdf_bp
+from docintel.routes.text import text_bp
 
 
 def create_app(config: type[Config] = Config) -> Flask:
@@ -24,5 +25,6 @@ def create_app(config: type[Config] = Config) -> Flask:
 
     app.register_blueprint(pdf_bp)
     app.register_blueprint(match_bp)
+    app.register_blueprint(text_bp)
 
     return app

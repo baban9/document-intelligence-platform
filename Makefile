@@ -1,0 +1,23 @@
+.PHONY: setup install run test clean
+
+PYTHON := .venv/bin/python
+PIP := .venv/bin/pip
+PYTEST := .venv/bin/pytest
+
+setup:
+	python3 -m venv .venv
+	$(PIP) install --upgrade pip
+	$(PIP) install -e ".[dev]"
+
+install:
+	$(PIP) install -e ".[dev]"
+
+run:
+	$(PYTHON) run.py
+
+test:
+	$(PYTEST) tests/ -q
+
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	rm -rf .pytest_cache dist build *.egg-info

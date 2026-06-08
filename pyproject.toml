@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     "flask>=3.0.3",
     "werkzeug>=3.0.3",
+    "pymupdf>=1.24.10",
 ]
 
 [project.optional-dependencies]

@@ -7,7 +7,7 @@
 
 Unified Flask API for document workflows: PDF annotation, resume-to-job matching, and extractive summarization. One service, shared config, tests, and documented tradeoffs.
 
-**Status:** Milestone 1 shipped (health check and project scaffold). Core document endpoints land in M2 through M4.
+**Status:** Milestone 2 shipped (PDF annotation API). Resume matching and summarization land in M3 and M4.
 
 ---
 
@@ -94,7 +94,7 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 | Capability | Endpoint | Status |
 |------------|----------|--------|
 | Service health | `GET /health` | Available |
-| PDF search and annotation | `POST /v1/pdf/annotate` | Milestone 2 |
+| PDF search and annotation | `POST /v1/pdf/annotate` | Available |
 | Resume vs job matching | `POST /v1/match/resume` | Milestone 3 |
 | Extractive summarization | `POST /v1/text/summarize` | Milestone 4 |
 | Docker and request metrics | `GET /metrics` | Milestone 5 |
@@ -123,7 +123,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 
@@ -168,20 +168,54 @@ Read the full decision record: [docs/adr/001-modular-monolith.md](docs/adr/001-m
 
 ---
 
-## API preview (upcoming)
+## API reference
 
-These endpoints are planned and documented here so integrators know the contract early.
+### PDF annotation (available)
 
-### PDF annotation (M2)
+Search a PDF with a regex pattern and apply an annotation action.
+
+**Download annotated PDF (default):**
 
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/pdf/annotate \
   -F "file=@contract.pdf" \
   -F "pattern=CONFIDENTIAL" \
-  -F "action=Redact"
+  -F "action=Redact" \
+  -o redacted_contract.pdf
 ```
 
-### Resume matching (M3)
+Response headers include match counts:
+
+```
+X-Docintel-Matches: 3
+X-Docintel-Pages-Processed: 12
+X-Docintel-Action: Redact
+```
+
+**JSON response with download link:**
+
+```bash
+curl -X POST "http://127.0.0.1:5000/v1/pdf/annotate?format=json" \
+  -F "file=@contract.pdf" \
+  -F "pattern=CONFIDENTIAL" \
+  -F "action=Highlight"
+```
+
+**Supported actions:**
+
+| Action | Description |
+|--------|-------------|
+| `Highlight` | Yellow highlight (default) |
+| `Squiggly` | Squiggly underline |
+| `Underline` | Straight underline |
+| `Strikeout` | Strikethrough |
+| `Redact` | Black out matched text |
+| `Frame` | Red bounding box |
+| `Remove` | Delete all annotations on selected pages |
+
+Optional form fields: `pages` (comma-separated page indexes, zero-based).
+
+### Resume matching (M3, planned)
 
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/match/resume \
@@ -189,7 +223,7 @@ curl -X POST http://127.0.0.1:5000/v1/match/resume \
   -d '{"resume": "...", "job_description": "..."}'
 ```
 
-### Summarization (M4)
+### Summarization (M4, planned)
 
 ```bash
 curl -X POST http://127.0.0.1:5000/v1/text/summarize \
@@ -218,7 +252,8 @@ document-intelligence-platform/
     app.py              Flask factory and routes
     config.py           Environment-based settings
     cli.py              CLI entry point
-    services/           PDF, matching, summary modules (M2+)
+    routes/pdf.py       PDF annotation HTTP endpoints
+    services/pdf/       PyMuPDF annotation engine
   tests/                Pytest suite
   docs/
     ROADMAP.md          Milestone plan and commit sequence
@@ -253,7 +288,7 @@ pip install -e ".[dev]"
 | Milestone | Scope | Status |
 |-----------|-------|--------|
 | M1 | Project scaffold, health endpoint, tests | Done |
-| M2 | PDF search and annotation | Planned |
+| M2 | PDF search and annotation | Done |
 | M3 | Resume-to-job similarity scoring | Planned |
 | M4 | Extractive summarization | Planned |
 | M5 | Docker, structured logging, metrics | Planned |

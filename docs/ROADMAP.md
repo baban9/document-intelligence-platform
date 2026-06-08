@@ -18,18 +18,15 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 
 ## Milestone 2: PDF annotation service
 
-**Issue title:** `M2: Add PDF search and annotation endpoint`
+**Issue title:** `M2: Add PDF search and annotation endpoint`  
+**Status:** Done
 
 **Deliverables:**
-- PDF logic in `docintel/services/pdf.py`
+- PDF logic in `docintel/services/pdf/`
 - `POST /v1/pdf/annotate` (upload PDF, regex pattern, action)
-- Unit tests with fixture PDF
-- README section with curl example
-
-**Suggested commit message:**
-```
-Add PDF annotation endpoint with regex search and highlight support
-```
+- `GET /v1/pdf/files/<job_id>/<filename>` for JSON mode downloads
+- Unit and route tests with fixture PDF
+- README section with curl examples
 
 ---
 

@@ -4,6 +4,7 @@ from flask import Flask, jsonify
 
 from docintel import __version__
 from docintel.config import Config
+from docintel.routes.pdf import pdf_bp
 
 
 def create_app(config: type[Config] = Config) -> Flask:
@@ -19,5 +20,7 @@ def create_app(config: type[Config] = Config) -> Flask:
                 "version": __version__,
             }
         )
+
+    app.register_blueprint(pdf_bp)
 
     return app

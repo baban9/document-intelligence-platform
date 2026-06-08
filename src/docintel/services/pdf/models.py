@@ -51,3 +51,20 @@ class ProcessResult:
             f"{self.matches} matches annotated in {self.pages_processed} pages "
             f"-> {self.output_path}"
         )
+
+
+@dataclass(frozen=True)
+class PIIDetectionResult(ProcessResult):
+    ocr_pages: list[int]
+    findings: list[dict]
+
+    def to_dict(self) -> dict:
+        payload = super().to_dict()
+        payload.update(
+            {
+                "ocr_pages": self.ocr_pages,
+                "findings": self.findings,
+                "finding_count": len(self.findings),
+            }
+        )
+        return payload

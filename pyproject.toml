@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel"
-version = "0.5.0"
+version = "0.6.0"
 description = "Document intelligence platform: PDF annotation, resume matching, and text summarization."
 readme = "README.md"
 license = {text = "MIT"}
@@ -33,6 +33,13 @@ dependencies = [
 dev = [
     "pytest>=8.3.3",
     "build>=1.2.2",
+]
+ocr = [
+    "easyocr>=1.7.2",
+    "presidio-analyzer>=2.2.354",
+    "spacy>=3.7.0",
+    "opencv-python-headless>=4.10.0",
+    "torch>=2.4.1",
 ]
 
 [project.scripts]

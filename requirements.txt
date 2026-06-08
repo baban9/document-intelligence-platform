@@ -1,0 +1,8 @@
+flask>=3.0.3
+werkzeug>=3.0.3
+urllib3>=2.2.3
+certifi>=2024.8.30
+idna>=3.10
+
+# Dev
+pytest>=8.3.3

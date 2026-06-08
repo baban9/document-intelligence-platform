@@ -1,0 +1,34 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+.env.*
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Runtime artifacts
+uploads/
+outputs/
+*.log
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/

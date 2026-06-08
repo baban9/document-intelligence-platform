@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docintel"
+version = "0.1.0"
+description = "Document intelligence platform: PDF annotation, resume matching, and text summarization."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "Babandeep Singh"}]
+keywords = ["nlp", "pdf", "flask", "document-ai", "resume-matching"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Framework :: Flask",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "flask>=3.0.3",
+    "werkzeug>=3.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "build>=1.2.2",
+]
+
+[project.scripts]
+docintel = "docintel.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/baban9/document-intelligence-platform"
+Repository = "https://github.com/baban9/document-intelligence-platform"
+Issues = "https://github.com/baban9/document-intelligence-platform/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

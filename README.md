@@ -99,6 +99,7 @@ Not a fit for: real-time collaborative editing, OCR on scanned images, or genera
 | Presidio entity catalog | `GET /v1/pdf/entities` | Available |
 | Resume vs job matching | `POST /v1/match/resume` | Available |
 | Extractive summarization | `POST /v1/text/summarize` | Available |
+| Upload GUI (Gradio) | http://localhost:7860 | Available |
 | Docker and request metrics | `GET /metrics` | Available |
 | Offline eval harness | `make eval` | Milestone 6 |
 
@@ -128,7 +129,7 @@ Expected response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.6.0"
+  "version": "0.7.0"
 }
 ```
 
@@ -144,14 +145,36 @@ CLI alternative:
 docintel --host 127.0.0.1 --port 5000
 ```
 
-Docker:
+Docker (API + Gradio UI, no local Python required):
 
 ```bash
-cp .env.example .env
 make docker-up
-curl http://127.0.0.1:5000/health
-make docker-logs
+```
+
+| Service | URL |
+|---------|-----|
+| REST API | http://127.0.0.1:5000 |
+| Gradio upload GUI | http://127.0.0.1:7860 |
+| Health check | http://127.0.0.1:5000/health |
+| Metrics | http://127.0.0.1:5000/metrics |
+
+First startup may take a few minutes while EasyOCR and Presidio models download inside the container.
+
+```bash
+make docker-logs      # api + ui logs
 make docker-down
+```
+
+Optional: copy `.env.example` to `.env` to override ports and log level.
+
+Local GUI (API must already be running):
+
+```bash
+make setup
+make setup-ocr
+make setup-ui
+make run              # terminal 1: API on :5000
+make run-ui           # terminal 2: Gradio on :7860
 ```
 
 ---
@@ -352,7 +375,7 @@ Example response:
 {
   "status": "ok",
   "service": "document-intelligence-platform",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "total_requests": 42,
   "total_errors": 2,
   "avg_latency_ms": 18.4,
@@ -406,6 +429,8 @@ document-intelligence-platform/
     ops/                JSON logging and request metrics
     wsgi.py             Gunicorn entry point
   tests/                Pytest suite
+  ui.py               Gradio upload GUI
+  run_ui.py           Launch Gradio locally or in Docker
   Dockerfile
   docker-compose.yml
   .env.example

@@ -249,13 +249,30 @@ curl -X POST http://127.0.0.1:5000/v1/pdf/structure \
 | `file` | Yes | PDF upload |
 | `mode` | No | `curate` (default, new typeset PDF) or `searchable` (invisible text on original pages) |
 | `force_ocr` | No | `true` to OCR every page |
+| `async` | No | `true` queues the job in Redis (returns `202`); `false` waits in the request (default) |
+
+**Async mode (recommended for scanned PDFs):**
+
+```bash
+# 1) Queue the job
+curl -X POST "http://127.0.0.1:5000/v1/pdf/structure?async=true" \
+  -F "file=@scanned_notes.pdf" \
+  -F "mode=curate"
+
+# 2) Poll until job_status is completed
+curl http://127.0.0.1:5000/v1/jobs/<job_id>
+
+# 3) Download from download_url in the poll response
+```
+
+Start Redis and the worker locally: `make setup-jobs`, then `make run-worker` in a second terminal. Docker Compose starts `redis`, `api`, and `worker` automatically.
 
 **Model used:** OpenAI **`gpt-4o-mini`** by default (set via `DOCINTEL_LLM_MODEL`). The service uses the official OpenAI Python client and any OpenAI-compatible endpoint if you set `DOCINTEL_LLM_BASE_URL`.
 
 **Install LLM extras:**
 
 ```bash
-pip install -e ".[ocr,llm]"
+pip install -e ".[ocr,llm,jobs]"
 ```
 
 **Get an OpenAI API key**

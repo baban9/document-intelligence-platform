@@ -212,6 +212,11 @@ def detect_sensitive():
     return response
 
 
+def _parse_async_flag() -> bool:
+    raw = request.args.get("async", request.form.get("async", "false"))
+    return str(raw).lower() == "true"
+
+
 @pdf_bp.post("/structure")
 def structure():
     """
@@ -219,6 +224,8 @@ def structure():
 
     Returns a curated typeset PDF (curate) or the original with a searchable
     invisible text layer (searchable).
+
+    Use ``async=true`` to queue the job and poll ``GET /v1/jobs/<job_id>``.
     """
     upload = request.files.get("file")
     if upload is None or not upload.filename:
@@ -235,6 +242,7 @@ def structure():
         return jsonify({"error": str(exc)}), 400
 
     force_ocr = request.form.get("force_ocr", "false").lower() == "true"
+    run_async = _parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _upload_dir() / job_id
@@ -243,6 +251,15 @@ def structure():
     input_path = work_dir / filename
     output_path = work_dir / f"structured_{filename}"
     upload.save(input_path)
+
+    if run_async:
+        return _enqueue_structure_job(
+            job_id=job_id,
+            input_path=input_path,
+            output_path=output_path,
+            mode=mode,
+            force_ocr=force_ocr,
+        )
 
     try:
         result = structure_pdf(
@@ -280,6 +297,50 @@ def structure():
     response.headers["X-Docintel-OCR-Pages"] = ",".join(str(page) for page in result.ocr_pages)
     response.headers["X-Docintel-Mode"] = result.mode.value
     response.headers["X-Docintel-Document-Title"] = result.document_title
+    return response
+
+
+def _enqueue_structure_job(
+    *,
+    job_id: str,
+    input_path: Path,
+    output_path: Path,
+    mode: StructureMode,
+    force_ocr: bool,
+):
+    from docintel.jobs.queue import enqueue_structure_job
+    from docintel.jobs.store import jobs_enabled, ping_redis
+    from docintel.jobs.tasks import create_queued_job
+
+    if not jobs_enabled():
+        return jsonify({"error": "Async jobs are disabled on this server."}), 503
+    if not ping_redis():
+        return jsonify(
+            {
+                "error": "Redis is not reachable. Start Redis or set DOCINTEL_REDIS_URL.",
+                "hint": "Use async=false for synchronous processing without a queue.",
+            }
+        ), 503
+
+    create_queued_job(job_id)
+    enqueue_structure_job(
+        job_id=job_id,
+        input_path=str(input_path),
+        output_path=str(output_path),
+        mode=mode.value,
+        force_ocr=force_ocr,
+        output_filename=output_path.name,
+    )
+
+    payload = {
+        "status": "ok",
+        "job_id": job_id,
+        "job_status": "queued",
+        "poll_url": f"/v1/jobs/{job_id}",
+        "message": "Job queued. Poll poll_url until job_status is completed.",
+    }
+    response = jsonify(payload)
+    response.status_code = 202
     return response
 
 

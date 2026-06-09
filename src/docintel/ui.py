@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -143,17 +144,41 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
 
     with path.open("rb") as handle:
         response = requests.post(
-            f"{API_BASE}/v1/pdf/structure?format=json",
+            f"{API_BASE}/v1/pdf/structure?async=true",
             files={"file": (path.name, handle, "application/pdf")},
             data={"mode": mode, "force_ocr": str(force_ocr).lower()},
-            timeout=600,
+            timeout=120,
         )
 
-    if not response.ok:
+    if response.status_code == 202:
+        payload = response.json()
+        poll_url = payload.get("poll_url")
+        if not poll_url:
+            return None, "Async job started but poll_url is missing."
+        for _ in range(300):
+            poll = requests.get(f"{API_BASE}{poll_url}", timeout=30)
+            if not poll.ok:
+                return None, _api_error(poll)
+            job_payload = poll.json()
+            job_status = job_payload.get("job_status")
+            if job_status == "completed":
+                payload = job_payload
+                break
+            if job_status == "failed":
+                return None, job_payload.get("error", "Structure job failed.")
+            time.sleep(2)
+        else:
+            return None, "Structure job timed out while polling."
+    elif response.ok:
+        payload = response.json()
+    else:
         return None, _api_error(response)
 
-    payload = response.json()
-    download = requests.get(f"{API_BASE}{payload['download_url']}", timeout=120)
+    download_url = payload.get("download_url")
+    if not download_url:
+        return None, "Structured PDF is not ready yet."
+
+    download = requests.get(f"{API_BASE}{download_url}", timeout=120)
     if not download.ok:
         return None, "Structured PDF could not be downloaded."
 
@@ -161,11 +186,13 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
     output.write(download.content)
     output.close()
 
+    result = payload.get("result") or payload
     summary = {
-        "mode": payload.get("mode"),
-        "document_title": payload.get("document_title"),
-        "pages_processed": payload.get("pages_processed"),
-        "ocr_pages": payload.get("ocr_pages"),
+        "job_status": payload.get("job_status"),
+        "mode": result.get("mode"),
+        "document_title": result.get("document_title"),
+        "pages_processed": result.get("pages_processed"),
+        "ocr_pages": result.get("ocr_pages"),
     }
     return output.name, json.dumps(summary, indent=2)
 

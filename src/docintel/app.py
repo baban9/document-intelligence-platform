@@ -6,6 +6,7 @@ from docintel import __version__
 from docintel.config import Config
 from docintel.ops.logging import configure_logging
 from docintel.ops.middleware import register_request_hooks
+from docintel.routes.jobs import jobs_bp
 from docintel.routes.match import match_bp
 from docintel.routes.ops import ops_bp
 from docintel.routes.pdf import pdf_bp
@@ -30,6 +31,7 @@ def create_app(config: type[Config] = Config) -> Flask:
         )
 
     app.register_blueprint(pdf_bp)
+    app.register_blueprint(jobs_bp)
     app.register_blueprint(match_bp)
     app.register_blueprint(text_bp)
     app.register_blueprint(ops_bp)

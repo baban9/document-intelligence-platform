@@ -103,15 +103,34 @@ def structure_page_text(page_index: int, source_text: str) -> StructuredPage:
     return StructuredPage.from_llm_payload(page_index, payload)
 
 
-def structure_document(page_texts: list[tuple[int, str]]) -> StructuredDocument:
+def structure_document(
+    page_texts: list[tuple[int, str]],
+    *,
+    progress_callback=None,
+) -> StructuredDocument:
     """Structure each page with the LLM and merge into one document model."""
     structured_pages: list[StructuredPage] = []
-    for page_index, text in page_texts:
+    total = len(page_texts)
+    for offset, (page_index, text) in enumerate(page_texts):
         cleaned = text.strip()
+        if progress_callback is not None:
+            progress_callback(
+                stage="structuring",
+                pages_done=offset,
+                pages_total=total,
+                message=f"Structuring page {page_index + 1} of {total}",
+            )
         if not cleaned:
             structured_pages.append(
                 StructuredPage(page_index=page_index, title="", sections=[], plain_text="")
             )
             continue
         structured_pages.append(structure_page_text(page_index, cleaned))
+    if progress_callback is not None:
+        progress_callback(
+            stage="structuring",
+            pages_done=total,
+            pages_total=total,
+            message="Structuring complete",
+        )
     return StructuredDocument.from_pages(structured_pages)

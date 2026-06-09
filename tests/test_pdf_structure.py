@@ -15,7 +15,7 @@ from docintel.services.pdf.structure_schema import (
 )
 
 
-def _fake_structure(page_texts):
+def _fake_structure(page_texts, progress_callback=None):
     pages = []
     for page_index, text in page_texts:
         pages.append(
@@ -111,8 +111,8 @@ def test_structure_route_returns_pdf(sample_pdf: Path, tmp_path: Path):
     app = create_app()
     app.config["UPLOAD_DIR"] = str(tmp_path / "uploads")
 
-    def fake_structure(page_texts):
-        return _fake_structure(page_texts)
+    def fake_structure(page_texts, progress_callback=None):
+        return _fake_structure(page_texts, progress_callback=progress_callback)
 
     from docintel.services.pdf import structure as structure_module
 

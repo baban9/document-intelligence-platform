@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 
 import fitz
 
@@ -13,6 +13,17 @@ from docintel.services.pdf.ocr import build_indexed_text, extract_page_ocr, page
 from docintel.services.pdf.structure_llm import structure_document
 from docintel.services.pdf.structure_render import render_curated_pdf, render_searchable_pdf
 from docintel.services.pdf.structure_schema import StructuredDocument
+
+
+class ProgressCallback(Protocol):
+    def __call__(
+        self,
+        *,
+        stage: str,
+        pages_done: int,
+        pages_total: int,
+        message: str,
+    ) -> None: ...
 
 
 def _ensure_ocr_stack() -> None:
@@ -41,6 +52,7 @@ def structure_pdf(
     mode: StructureMode | str = StructureMode.CURATE,
     force_ocr: bool = False,
     structure_fn: Callable[[list[tuple[int, str]]], StructuredDocument] | None = None,
+    progress_callback: ProgressCallback | None = None,
     password: str | None = None,
 ) -> StructureResult:
     """
@@ -56,14 +68,32 @@ def structure_pdf(
     page_texts: list[tuple[int, str]] = []
     ocr_pages: list[int] = []
 
-    for page_index in range(pdf_doc.page_count):
+    total_pages = pdf_doc.page_count
+    for page_index in range(total_pages):
+        if progress_callback is not None:
+            progress_callback(
+                stage="extracting",
+                pages_done=page_index,
+                pages_total=total_pages,
+                message=f"Extracting page {page_index + 1} of {total_pages}",
+            )
         text, used_ocr = _extract_page_text(pdf_doc[page_index], force_ocr=force_ocr)
         if used_ocr:
             ocr_pages.append(page_index)
         page_texts.append((page_index, text))
 
-    structure = structure_fn or structure_document
-    document = structure(page_texts)
+    if progress_callback is not None:
+        progress_callback(
+            stage="extracting",
+            pages_done=total_pages,
+            pages_total=total_pages,
+            message="Extraction complete",
+        )
+
+    if structure_fn is not None:
+        document = structure_fn(page_texts)
+    else:
+        document = structure_document(page_texts, progress_callback=progress_callback)
 
     output_path = Path(output_file)
     pages_processed = pdf_doc.page_count

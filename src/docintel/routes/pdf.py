@@ -247,6 +247,7 @@ def structure():
         return jsonify({"error": str(exc)}), 400
 
     force_ocr = request.form.get("force_ocr", "false").lower() == "true"
+    callback_url = request.form.get("callback_url", "").strip() or None
     run_async = _parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
@@ -264,6 +265,7 @@ def structure():
             output_path=output_path,
             mode=mode,
             force_ocr=force_ocr,
+            callback_url=callback_url,
         )
 
     try:
@@ -312,6 +314,7 @@ def _enqueue_structure_job(
     output_path: Path,
     mode: StructureMode,
     force_ocr: bool,
+    callback_url: str | None,
 ):
     from docintel.jobs.queue import enqueue_structure_job
     from docintel.jobs.store import jobs_enabled, ping_redis
@@ -327,7 +330,7 @@ def _enqueue_structure_job(
             }
         ), 503
 
-    create_queued_job(job_id)
+    create_queued_job(job_id, callback_url=callback_url)
     enqueue_structure_job(
         job_id=job_id,
         input_path=str(input_path),

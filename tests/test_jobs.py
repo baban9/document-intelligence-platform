@@ -91,7 +91,7 @@ def test_structure_async_returns_202(sample_pdf: Path, tmp_path: Path, fake_redi
     assert fake_enqueue.called_with is not None
 
 
-def _fake_structure(page_texts):
+def _fake_structure(page_texts, progress_callback=None):
     pages = []
     for page_index, text in page_texts:
         pages.append(

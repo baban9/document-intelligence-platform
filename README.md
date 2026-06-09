@@ -8,7 +8,7 @@
 
 Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), LLM PDF structuring, resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
 
-**Version:** 0.8.0
+**Version:** 0.9.0
 
 ---
 
@@ -249,6 +249,8 @@ curl -X POST http://127.0.0.1:5000/v1/pdf/structure \
 | `file` | Yes | PDF upload |
 | `mode` | No | `curate` (default, new typeset PDF) or `searchable` (invisible text on original pages) |
 | `force_ocr` | No | `true` to OCR every page |
+| `redact_before_llm` | No | `true` masks Presidio PII before text is sent to the LLM |
+| `callback_url` | No | Webhook URL notified when an async job completes or fails |
 | `async` | No | `true` queues the job in Redis (returns `202`); `false` waits in the request (default) |
 
 **Async mode (recommended for scanned PDFs):**
@@ -378,8 +380,39 @@ Returns request counts, error counts, average latency, and per-endpoint breakdow
 | `DOCINTEL_LLM_API_KEY` | unset | OpenAI-compatible API key for `/v1/pdf/structure` |
 | `DOCINTEL_LLM_MODEL` | `gpt-4o-mini` | Model name for structuring |
 | `DOCINTEL_LLM_BASE_URL` | unset | Optional compatible API base URL |
+| `DOCINTEL_API_KEYS` | unset | Comma-separated API keys (`Authorization: Bearer ...`) |
+| `DOCINTEL_AUTH_REQUIRED` | `false` | Require auth on `/v1/*` when `true` or keys are set |
+| `DOCINTEL_RATE_LIMIT_ENABLED` | `true` | Per-key rate limits via Redis |
+| `DOCINTEL_OIDC_ISSUER` | unset | Optional OIDC issuer for JWT bearer tokens |
+| `DOCINTEL_OIDC_AUDIENCE` | unset | Expected JWT audience |
+| `DOCINTEL_OIDC_JWKS_URL` | unset | JWKS URL (defaults to issuer `/.well-known/jwks.json`) |
+| `DOCINTEL_API_KEY` | unset | API key used by the Gradio UI client |
 | `GRADIO_SERVER_NAME` | `127.0.0.1` | Gradio bind (`0.0.0.0` in Docker) |
 | `GRADIO_SERVER_PORT` | `7860` | Gradio port |
+
+### API authentication
+
+Protect `/v1/*` routes with API keys and optional OIDC JWTs.
+
+```bash
+export DOCINTEL_API_KEYS="dev-key-1,dev-key-2"
+export DOCINTEL_AUTH_REQUIRED=true
+
+curl -H "Authorization: Bearer dev-key-1" \
+  http://127.0.0.1:5000/v1/pdf/entities
+```
+
+**OIDC (enterprise SSO tokens):**
+
+```bash
+export DOCINTEL_OIDC_ISSUER="https://your-idp.example.com"
+export DOCINTEL_OIDC_AUDIENCE="docintel-api"
+pip install -e ".[auth]"
+```
+
+Send `Authorization: Bearer <jwt>` from your identity provider. API keys still work when both are configured.
+
+Install auth extras: `pip install -e ".[auth]"` (Flask-Limiter + PyJWT).
 
 ---
 

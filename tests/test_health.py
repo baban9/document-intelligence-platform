@@ -11,4 +11,4 @@ def test_health_returns_ok():
     assert response.status_code == 200
     assert payload["status"] == "ok"
     assert payload["service"] == "document-intelligence-platform"
-    assert payload["version"] == "0.8.0"
+    assert payload["version"] == "0.9.0"

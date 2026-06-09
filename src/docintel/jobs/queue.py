@@ -26,6 +26,7 @@ def enqueue_structure_job(
     mode: str,
     force_ocr: bool,
     output_filename: str,
+    redact_before_llm: bool = False,
 ) -> None:
     queue = get_queue()
     queue.enqueue(
@@ -36,6 +37,7 @@ def enqueue_structure_job(
         mode=mode,
         force_ocr=force_ocr,
         output_filename=output_filename,
+        redact_before_llm=redact_before_llm,
         job_timeout=1800,
         result_ttl=DEFAULT_RESULT_TTL,
         failure_ttl=DEFAULT_FAILURE_TTL,

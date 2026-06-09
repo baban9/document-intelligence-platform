@@ -51,6 +51,7 @@ def structure_pdf(
     *,
     mode: StructureMode | str = StructureMode.CURATE,
     force_ocr: bool = False,
+    redact_before_llm: bool = False,
     structure_fn: Callable[[list[tuple[int, str]]], StructuredDocument] | None = None,
     progress_callback: ProgressCallback | None = None,
     password: str | None = None,
@@ -80,6 +81,10 @@ def structure_pdf(
         text, used_ocr = _extract_page_text(pdf_doc[page_index], force_ocr=force_ocr)
         if used_ocr:
             ocr_pages.append(page_index)
+        if redact_before_llm and text.strip():
+            from docintel.services.pdf.pii import mask_pii_in_text
+
+            text, _ = mask_pii_in_text(text)
         page_texts.append((page_index, text))
 
     if progress_callback is not None:

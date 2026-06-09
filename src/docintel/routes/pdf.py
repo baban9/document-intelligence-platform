@@ -247,6 +247,7 @@ def structure():
         return jsonify({"error": str(exc)}), 400
 
     force_ocr = request.form.get("force_ocr", "false").lower() == "true"
+    redact_before_llm = request.form.get("redact_before_llm", "false").lower() == "true"
     callback_url = request.form.get("callback_url", "").strip() or None
     run_async = _parse_async_flag()
 
@@ -265,6 +266,7 @@ def structure():
             output_path=output_path,
             mode=mode,
             force_ocr=force_ocr,
+            redact_before_llm=redact_before_llm,
             callback_url=callback_url,
         )
 
@@ -274,6 +276,7 @@ def structure():
             output_file=output_path,
             mode=mode,
             force_ocr=force_ocr,
+            redact_before_llm=redact_before_llm,
         )
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 503
@@ -314,6 +317,7 @@ def _enqueue_structure_job(
     output_path: Path,
     mode: StructureMode,
     force_ocr: bool,
+    redact_before_llm: bool,
     callback_url: str | None,
 ):
     from docintel.jobs.queue import enqueue_structure_job
@@ -338,6 +342,7 @@ def _enqueue_structure_job(
         mode=mode.value,
         force_ocr=force_ocr,
         output_filename=output_path.name,
+        redact_before_llm=redact_before_llm,
     )
 
     payload = {

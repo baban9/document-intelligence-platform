@@ -38,6 +38,7 @@ def run_structure_pdf_job(
     mode: str,
     force_ocr: bool,
     output_filename: str,
+    redact_before_llm: bool = False,
 ) -> dict:
     """Worker entrypoint: OCR + LLM structure, then update job metadata."""
     record = get_job(job_id)
@@ -56,6 +57,7 @@ def run_structure_pdf_job(
             output_file=Path(output_path),
             mode=StructureMode.from_value(mode),
             force_ocr=force_ocr,
+            redact_before_llm=redact_before_llm,
             progress_callback=_job_progress_callback(job_id),
         )
     except Exception as exc:

@@ -136,6 +136,40 @@ def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str
     return json.dumps(response.json(), indent=2)
 
 
+def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, str]:
+    path = resolve_upload_path(pdf_file)
+    if path is None:
+        return None, "Upload a PDF file."
+
+    with path.open("rb") as handle:
+        response = requests.post(
+            f"{API_BASE}/v1/pdf/structure?format=json",
+            files={"file": (path.name, handle, "application/pdf")},
+            data={"mode": mode, "force_ocr": str(force_ocr).lower()},
+            timeout=600,
+        )
+
+    if not response.ok:
+        return None, _api_error(response)
+
+    payload = response.json()
+    download = requests.get(f"{API_BASE}{payload['download_url']}", timeout=120)
+    if not download.ok:
+        return None, "Structured PDF could not be downloaded."
+
+    output = tempfile.NamedTemporaryFile(delete=False, suffix="_structured.pdf")
+    output.write(download.content)
+    output.close()
+
+    summary = {
+        "mode": payload.get("mode"),
+        "document_title": payload.get("document_title"),
+        "pages_processed": payload.get("pages_processed"),
+        "ocr_pages": payload.get("ocr_pages"),
+    }
+    return output.name, json.dumps(summary, indent=2)
+
+
 def summarize_text_ui(text: str, sentences: int) -> str:
     if not text.strip():
         return "Provide text to summarize."
@@ -214,6 +248,31 @@ def build_ui():
                     sensitive_text_layer,
                 ],
                 outputs=[sensitive_output, sensitive_report],
+            )
+
+        with gr.Tab("PDF structure (LLM)"):
+            gr.Markdown(
+                "Convert scanned or unstructured PDFs into a curated digital PDF. "
+                "Requires `DOCINTEL_LLM_API_KEY` on the API server (default model: `gpt-4o-mini`). "
+                "Get a key: [platform.openai.com/api-keys](https://platform.openai.com/api-keys) "
+                "| [setup guide](https://platform.openai.com/docs/quickstart)."
+            )
+            with gr.Row():
+                structure_file = gr.File(label="PDF upload", file_types=[".pdf"])
+                structure_mode = gr.Dropdown(
+                    ["curate", "searchable"],
+                    value="curate",
+                    label="Output mode",
+                )
+            structure_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
+            structure_btn = gr.Button("Structure PDF")
+            structure_output = gr.File(label="Structured PDF")
+            structure_report = gr.Textbox(label="Structure report", lines=8)
+
+            structure_btn.click(
+                structure_pdf_ui,
+                inputs=[structure_file, structure_mode, structure_force_ocr],
+                outputs=[structure_output, structure_report],
             )
 
         with gr.Tab("Resume matching"):

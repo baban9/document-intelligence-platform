@@ -6,6 +6,20 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+class StructureMode(str, Enum):
+    CURATE = "curate"
+    SEARCHABLE = "searchable"
+
+    @classmethod
+    def from_value(cls, value: str) -> "StructureMode":
+        normalized = value.strip().lower()
+        for mode in cls:
+            if mode.value == normalized:
+                return mode
+        valid = ", ".join(mode.value for mode in cls)
+        raise ValueError(f"Unsupported mode '{value}'. Choose from: {valid}")
+
+
 class Action(str, Enum):
     HIGHLIGHT = "Highlight"
     SQUIGGLY = "Squiggly"
@@ -51,6 +65,26 @@ class ProcessResult:
             f"{self.matches} matches annotated in {self.pages_processed} pages "
             f"-> {self.output_path}"
         )
+
+
+@dataclass(frozen=True)
+class StructureResult:
+    input_path: str
+    output_path: str
+    mode: StructureMode
+    pages_processed: int
+    ocr_pages: list[int]
+    document_title: str
+
+    def to_dict(self) -> dict:
+        return {
+            "input_path": self.input_path,
+            "output_path": self.output_path,
+            "mode": self.mode.value,
+            "pages_processed": self.pages_processed,
+            "ocr_pages": self.ocr_pages,
+            "document_title": self.document_title,
+        }
 
 
 @dataclass(frozen=True)

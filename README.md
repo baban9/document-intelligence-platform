@@ -6,9 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen.svg)](tests/)
 
-Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
+Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), LLM PDF structuring, resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
 
-**Version:** 0.7.0
+**Version:** 0.8.0
 
 ---
 
@@ -48,6 +48,7 @@ Open http://127.0.0.1:7860 after `make docker-up` (or `make run-ui` locally).
 |-----|--------------|
 | **PDF regex annotate** | Search by pattern, highlight or redact |
 | **Sensitive PDF (OCR + Presidio)** | Scanned docs: OCR, detect PII, annotate boxes |
+| **PDF structure (LLM)** | Scanned or messy PDFs to curated structured PDF |
 | **Resume matching** | Score resume vs job description |
 | **Text summarization** | Extractive summary with TextRank |
 
@@ -61,6 +62,7 @@ The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if t
 |------------|-----|-----|
 | PDF regex search and annotation | `POST /v1/pdf/annotate` | PDF regex annotate tab |
 | Scanned PDF PII detection | `POST /v1/pdf/detect-sensitive` | Sensitive PDF tab |
+| LLM PDF structuring | `POST /v1/pdf/structure` | PDF structure tab |
 | Presidio entity catalog | `GET /v1/pdf/entities` | - |
 | Resume vs job matching | `POST /v1/match/resume` | Resume matching tab |
 | Extractive summarization | `POST /v1/text/summarize` | Text summarization tab |
@@ -124,6 +126,7 @@ git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 make setup
 make setup-ocr    # EasyOCR + Presidio + spaCy en model
+make setup-llm    # OpenAI client for PDF structuring
 make setup-ui     # Gradio client
 ```
 
@@ -152,6 +155,7 @@ make test
 ```bash
 pip install -e ".[dev]"        # tests
 pip install -e ".[ocr]"        # scanned PDF pipeline
+pip install -e ".[llm]"        # LLM PDF structuring
 pip install -e ".[ui]"         # Gradio GUI
 python -m spacy download en_core_web_sm
 ```
@@ -180,7 +184,7 @@ Modular monolith: one Flask app, separate service modules, optional Gradio front
             |                             |                             |
       PyMuPDF regex               TF-IDF cosine                 TextRank graph
       EasyOCR (scanned)           keyword overlap               extractive output
-      Presidio PII boxes
+      Presidio PII boxes          LLM PDF structure
 ```
 
 Decision records: [modular monolith](docs/adr/001-modular-monolith.md), [OCR + Presidio](docs/adr/002-ocr-presidio-pipeline.md)
@@ -226,6 +230,54 @@ curl http://127.0.0.1:5000/v1/pdf/entities
 | `min_score` | No | Presidio confidence threshold (default `0.35`) |
 
 **Default Presidio entities:** `EMAIL_ADDRESS`, `PHONE_NUMBER`, `US_SSN`, `CREDIT_CARD`, `US_BANK_NUMBER`, `US_DRIVER_LICENSE`, `US_ITIN`, `US_PASSPORT`, `PERSON`, `LOCATION`, `DATE_TIME`, `IP_ADDRESS`, `IBAN_CODE`, `MEDICAL_LICENSE`, `URL`.
+
+---
+
+### LLM PDF structuring (scanned to curated PDF)
+
+Turn unstructured or scanned PDFs into a clean digital PDF. EasyOCR extracts text when the native layer is missing. An OpenAI-compatible LLM cleans and structures the content, then the service returns a curated typeset PDF or a searchable layer on the original pages.
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/pdf/structure \
+  -F "file=@scanned_notes.pdf" \
+  -F "mode=curate" \
+  -o structured_notes.pdf
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `file` | Yes | PDF upload |
+| `mode` | No | `curate` (default, new typeset PDF) or `searchable` (invisible text on original pages) |
+| `force_ocr` | No | `true` to OCR every page |
+
+**Model used:** OpenAI **`gpt-4o-mini`** by default (set via `DOCINTEL_LLM_MODEL`). The service uses the official OpenAI Python client and any OpenAI-compatible endpoint if you set `DOCINTEL_LLM_BASE_URL`.
+
+**Install LLM extras:**
+
+```bash
+pip install -e ".[ocr,llm]"
+```
+
+**Get an OpenAI API key**
+
+Official guide: [OpenAI API quickstart](https://platform.openai.com/docs/quickstart)  
+Manage keys: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+1. Create an account at [platform.openai.com](https://platform.openai.com) (or sign in).
+2. Open [API keys](https://platform.openai.com/api-keys) and click **Create new secret key**.
+3. Copy the key once (it is shown only at creation time).
+4. Add billing or credits on the OpenAI platform if required for your account.
+5. Export the key before starting the API:
+
+```bash
+export DOCINTEL_LLM_API_KEY="sk-..."
+export DOCINTEL_LLM_MODEL="gpt-4o-mini"   # optional; this is the default
+make run
+```
+
+For Docker or persistent local use, copy `.env.example` to `.env` and set `DOCINTEL_LLM_API_KEY` there. Do not commit `.env` or share the key in git.
+
+**Optional:** use another OpenAI-compatible provider by setting `DOCINTEL_LLM_BASE_URL` and the matching model name for that provider.
 
 ---
 
@@ -306,6 +358,9 @@ Returns request counts, error counts, average latency, and per-endpoint breakdow
 | `DOCINTEL_LOG_LEVEL` | `INFO` | JSON log verbosity |
 | `WEB_CONCURRENCY` | `1` | Gunicorn workers (keep at 1 for OCR) |
 | `DOCINTEL_API_URL` | `http://127.0.0.1:5000` | Gradio UI backend URL |
+| `DOCINTEL_LLM_API_KEY` | unset | OpenAI-compatible API key for `/v1/pdf/structure` |
+| `DOCINTEL_LLM_MODEL` | `gpt-4o-mini` | Model name for structuring |
+| `DOCINTEL_LLM_BASE_URL` | unset | Optional compatible API base URL |
 | `GRADIO_SERVER_NAME` | `127.0.0.1` | Gradio bind (`0.0.0.0` in Docker) |
 | `GRADIO_SERVER_PORT` | `7860` | Gradio port |
 
@@ -343,6 +398,7 @@ document-intelligence-platform/
 |---------|-------------|
 | `make setup` | venv + core package |
 | `make setup-ocr` | EasyOCR + Presidio + spaCy model |
+| `make setup-llm` | OpenAI client for PDF structuring |
 | `make setup-ui` | Gradio GUI dependencies |
 | `make run` | Start API (:5000) |
 | `make run-ui` | Start Gradio (:7860) |
@@ -364,6 +420,7 @@ document-intelligence-platform/
 | M5 | Docker, logging, metrics | Done |
 | M5+ | OCR + Presidio scanned PDF pipeline | Done |
 | M5+ | Gradio upload GUI | Done |
+| M8 | LLM PDF structuring | Done |
 | M6 | Offline eval harness | Planned |
 | M7 | Production checklist | Planned |
 
@@ -376,6 +433,7 @@ Details: [docs/ROADMAP.md](docs/ROADMAP.md)
 - OCR requests are CPU-heavy; expect higher latency on scanned PDFs.
 - Presidio entity types are extensible; defaults cover common US PII.
 - First EasyOCR run downloads models (~100MB+).
+- LLM structuring sends page text to your configured model provider when native OCR text is used.
 - Not intended for real-time collaborative editing or generative long-form writing.
 
 ---

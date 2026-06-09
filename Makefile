@@ -1,4 +1,4 @@
-.PHONY: setup setup-ocr setup-ui install run run-ui test clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr setup-llm setup-ui install run run-ui test clean docker-build docker-up docker-down docker-logs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -13,6 +13,9 @@ setup:
 setup-ocr:
 	$(PIP) install -e ".[ocr]"
 	$(PYTHON) -m spacy download en_core_web_sm
+
+setup-llm:
+	$(PIP) install -e ".[llm]"
 
 setup-ui:
 	$(PIP) install -e ".[ui]"

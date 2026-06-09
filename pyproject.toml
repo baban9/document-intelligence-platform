@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel"
-version = "0.7.0"
+version = "0.8.0"
 description = "Document intelligence platform: PDF annotation, resume matching, and text summarization."
 readme = "README.md"
 license = {text = "MIT"}
@@ -44,6 +44,9 @@ ocr = [
 ui = [
     "gradio>=4.44.0",
     "requests>=2.32.3",
+]
+llm = [
+    "openai>=1.54.0",
 ]
 
 [project.scripts]

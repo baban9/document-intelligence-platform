@@ -1,4 +1,4 @@
-.PHONY: setup setup-ocr setup-llm setup-jobs setup-ui install run run-worker run-ui test clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test clean docker-build docker-up docker-down docker-logs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -19,6 +19,9 @@ setup-llm:
 
 setup-jobs:
 	$(PIP) install -e ".[jobs]"
+
+setup-auth:
+	$(PIP) install -e ".[auth]"
 
 setup-ui:
 	$(PIP) install -e ".[ui]"

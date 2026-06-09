@@ -2,12 +2,14 @@
 
 from flask import Blueprint, jsonify, request
 
+from docintel.auth.limiter import limiter
 from docintel.services.matching import match_resume_to_job
 
 match_bp = Blueprint("match", __name__, url_prefix="/v1/match")
 
 
 @match_bp.post("/resume")
+@limiter.limit("100 per hour")
 def match_resume():
     """Score how well a resume matches a job description."""
     payload = request.get_json(silent=True)

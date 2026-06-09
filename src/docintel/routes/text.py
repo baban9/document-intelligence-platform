@@ -2,6 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
+from docintel.auth.limiter import limiter
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
 
@@ -9,6 +10,7 @@ text_bp = Blueprint("text", __name__, url_prefix="/v1/text")
 
 
 @text_bp.post("/summarize")
+@limiter.limit("100 per hour")
 def summarize():
     """Extractively summarize plain text using TextRank sentence ranking."""
     payload = request.get_json(silent=True)

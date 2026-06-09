@@ -12,3 +12,9 @@ class Config:
     REDIS_URL = os.getenv("DOCINTEL_REDIS_URL", "redis://localhost:6379/0")
     JOBS_ENABLED = os.getenv("DOCINTEL_JOBS_ENABLED", "true").lower() == "true"
     QUEUE_NAME = os.getenv("DOCINTEL_QUEUE_NAME", "docintel")
+    API_KEYS = os.getenv("DOCINTEL_API_KEYS", "")
+    AUTH_REQUIRED = os.getenv("DOCINTEL_AUTH_REQUIRED", "false").lower() == "true"
+    RATE_LIMIT_ENABLED = os.getenv("DOCINTEL_RATE_LIMIT_ENABLED", "true").lower() == "true"
+    OIDC_ISSUER = os.getenv("DOCINTEL_OIDC_ISSUER", "")
+    OIDC_AUDIENCE = os.getenv("DOCINTEL_OIDC_AUDIENCE", "")
+    OIDC_JWKS_URL = os.getenv("DOCINTEL_OIDC_JWKS_URL", "")

@@ -4,6 +4,8 @@ from flask import Flask, jsonify
 
 from docintel import __version__
 from docintel.config import Config
+from docintel.auth.limiter import init_limiter
+from docintel.auth.middleware import register_auth
 from docintel.ops.logging import configure_logging
 from docintel.ops.middleware import register_request_hooks
 from docintel.routes.jobs import jobs_bp
@@ -19,6 +21,8 @@ def create_app(config: type[Config] = Config) -> Flask:
 
     configure_logging(config.LOG_LEVEL)
     register_request_hooks(app)
+    register_auth(app)
+    init_limiter(app)
 
     @app.get("/health")
     def health():

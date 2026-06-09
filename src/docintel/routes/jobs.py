@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify
 
+from docintel.auth.limiter import limiter
 from docintel.jobs.store import get_job
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/v1/jobs")
 
 
 @jobs_bp.get("/<job_id>")
+@limiter.limit("600 per hour")
 def job_status(job_id: str):
     """Poll async job status and download URL when complete."""
     record = get_job(job_id)

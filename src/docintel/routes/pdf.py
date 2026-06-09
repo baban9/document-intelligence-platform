@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
+from docintel.auth.limiter import limiter
 from docintel.services.pdf import (
     Action,
     DEFAULT_PII_ENTITIES,
@@ -34,6 +35,7 @@ def _parse_pages(raw_pages: str | None) -> list[int] | None:
 
 
 @pdf_bp.post("/annotate")
+@limiter.limit("60 per hour")
 def annotate():
     """Search a PDF and apply highlight, redact, or other annotation actions."""
     upload = request.files.get("file")
@@ -111,6 +113,7 @@ def _parse_entities(raw_entities: str | None) -> list[str] | None:
 
 
 @pdf_bp.get("/entities")
+@limiter.limit("120 per hour")
 def supported_entities():
     """List Presidio entity types available for sensitive detection."""
     try:
@@ -128,6 +131,7 @@ def supported_entities():
 
 
 @pdf_bp.post("/detect-sensitive")
+@limiter.limit("30 per hour")
 def detect_sensitive():
     """
     Detect PII with Presidio and annotate the PDF.
@@ -218,6 +222,7 @@ def _parse_async_flag() -> bool:
 
 
 @pdf_bp.post("/structure")
+@limiter.limit("20 per hour")
 def structure():
     """
     Structure an unstructured or scanned PDF with OCR and an LLM.
@@ -345,6 +350,7 @@ def _enqueue_structure_job(
 
 
 @pdf_bp.get("/files/<job_id>/<filename>")
+@limiter.limit("200 per hour")
 def download_file(job_id: str, filename: str):
     """Download a previously generated PDF when using JSON response mode."""
     safe_job = secure_filename(job_id)

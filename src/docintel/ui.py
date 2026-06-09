@@ -12,6 +12,13 @@ from typing import Any
 import requests
 
 API_BASE = os.getenv("DOCINTEL_API_URL", "http://127.0.0.1:5000").rstrip("/")
+API_KEY = os.getenv("DOCINTEL_API_KEY", "")
+
+
+def _api_headers() -> dict[str, str]:
+    if API_KEY.strip():
+        return {"Authorization": f"Bearer {API_KEY.strip()}"}
+    return {}
 GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
 GRADIO_PORT = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
 
@@ -59,6 +66,7 @@ def annotate_pdf_ui(pdf_file: Any, pattern: str, action: str) -> tuple[Any, str]
             f"{API_BASE}/v1/pdf/annotate",
             files={"file": (path.name, handle, "application/pdf")},
             data={"pattern": pattern, "action": action},
+            headers=_api_headers(),
             timeout=120,
         )
 
@@ -95,6 +103,7 @@ def detect_sensitive_ui(
             f"{API_BASE}/v1/pdf/detect-sensitive?format=json",
             files={"file": (path.name, handle, "application/pdf")},
             data=data,
+            headers=_api_headers(),
             timeout=300,
         )
 
@@ -102,7 +111,9 @@ def detect_sensitive_ui(
         return None, _api_error(response)
 
     payload = response.json()
-    download = requests.get(f"{API_BASE}{payload['download_url']}", timeout=120)
+    download = requests.get(
+        f"{API_BASE}{payload['download_url']}", headers=_api_headers(), timeout=120
+    )
     if not download.ok:
         return None, "Processed PDF could not be downloaded."
 
@@ -130,6 +141,7 @@ def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str
             "job_description": job_description,
             "top_keywords": int(top_keywords),
         },
+        headers=_api_headers(),
         timeout=60,
     )
     if not response.ok:
@@ -147,6 +159,7 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
             f"{API_BASE}/v1/pdf/structure?async=true",
             files={"file": (path.name, handle, "application/pdf")},
             data={"mode": mode, "force_ocr": str(force_ocr).lower()},
+            headers=_api_headers(),
             timeout=120,
         )
 
@@ -156,7 +169,7 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
         if not poll_url:
             return None, "Async job started but poll_url is missing."
         for _ in range(300):
-            poll = requests.get(f"{API_BASE}{poll_url}", timeout=30)
+            poll = requests.get(f"{API_BASE}{poll_url}", headers=_api_headers(), timeout=30)
             if not poll.ok:
                 return None, _api_error(poll)
             job_payload = poll.json()
@@ -178,7 +191,7 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
     if not download_url:
         return None, "Structured PDF is not ready yet."
 
-    download = requests.get(f"{API_BASE}{download_url}", timeout=120)
+    download = requests.get(f"{API_BASE}{download_url}", headers=_api_headers(), timeout=120)
     if not download.ok:
         return None, "Structured PDF could not be downloaded."
 
@@ -204,6 +217,7 @@ def summarize_text_ui(text: str, sentences: int) -> str:
     response = requests.post(
         f"{API_BASE}/v1/text/summarize",
         json={"text": text, "sentences": int(sentences)},
+        headers=_api_headers(),
         timeout=60,
     )
     if not response.ok:

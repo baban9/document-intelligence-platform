@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel"
-version = "1.0.0"
+version = "1.0.1"
 description = "Document intelligence API and Python client for PDF OCR, PII detection, LLM structuring, matching, and summarization."
 readme = "README.md"
 license = {text = "MIT"}
@@ -94,6 +94,9 @@ Homepage = "https://github.com/baban9/document-intelligence-platform"
 Repository = "https://github.com/baban9/document-intelligence-platform"
 Documentation = "https://github.com/baban9/document-intelligence-platform#readme"
 Issues = "https://github.com/baban9/document-intelligence-platform/issues"
+
+[tool.setuptools]
+license-files = []
 
 [tool.setuptools.packages.find]
 where = ["src"]

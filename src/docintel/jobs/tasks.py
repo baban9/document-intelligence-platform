@@ -6,7 +6,8 @@ from pathlib import Path
 
 from docintel.jobs.models import JobRecord, JobStatus, JobType
 from docintel.jobs.store import get_job, save_job, update_job
-from docintel.services.pdf.models import StructureMode
+from docintel.services.pdf.models import Action, StructureMode
+from docintel.services.pdf.sensitive import detect_sensitive_pdf
 from docintel.services.pdf.structure import structure_pdf
 
 
@@ -93,10 +94,76 @@ def _notify_webhook(callback_url: str | None, record: JobRecord) -> None:
     deliver_job_webhook(callback_url, record.to_dict())
 
 
-def create_queued_job(job_id: str, *, callback_url: str | None = None) -> JobRecord:
+def run_detect_sensitive_pdf_job(
+    *,
+    job_id: str,
+    input_path: str,
+    output_path: str,
+    output_filename: str,
+    action: str,
+    force_ocr: bool,
+    add_text_layer: bool,
+    min_score: float,
+    entities: list[str] | None = None,
+    pattern: str | None = None,
+) -> dict:
+    """Worker entrypoint: OCR + Presidio sensitive PDF detection."""
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=5,
+        progress_message="Sensitive detection started",
+    )
+
+    try:
+        result = detect_sensitive_pdf(
+            input_file=Path(input_path),
+            output_file=Path(output_path),
+            entities=entities,
+            action=Action.from_value(action),
+            force_ocr=force_ocr,
+            add_text_layer=add_text_layer,
+            pattern=pattern,
+            min_score=min_score,
+            progress_callback=_job_progress_callback(job_id),
+        )
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    download_url = f"/v1/pdf/files/{job_id}/{output_filename}"
+    result_payload = result.to_dict()
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        download_url=download_url,
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def create_queued_job(
+    job_id: str,
+    *,
+    job_type: JobType,
+    callback_url: str | None = None,
+) -> JobRecord:
     record = JobRecord(
         job_id=job_id,
-        job_type=JobType.PDF_STRUCTURE,
+        job_type=job_type,
         status=JobStatus.QUEUED,
         progress=0,
         progress_message="Queued",

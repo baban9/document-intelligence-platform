@@ -39,7 +39,7 @@ def test_job_record_roundtrip():
 
 
 def test_save_and_get_job(fake_redis):
-    record = create_queued_job("job001")
+    record = create_queued_job("job001", job_type=JobType.PDF_STRUCTURE)
     loaded = get_job("job001")
     assert loaded is not None
     assert loaded.status == JobStatus.QUEUED
@@ -124,7 +124,7 @@ def test_run_structure_pdf_job_updates_status(
     input_path = work_dir / "sample.pdf"
     output_path = work_dir / "structured_sample.pdf"
     input_path.write_bytes(sample_pdf.read_bytes())
-    create_queued_job(job_id)
+    create_queued_job(job_id, job_type=JobType.PDF_STRUCTURE)
 
     monkeypatch.setattr(structure_module, "structure_document", _fake_structure)
 

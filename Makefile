@@ -1,4 +1,4 @@
-.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test build-dist publish-pypi clean docker-build docker-up docker-down docker-logs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -40,6 +40,12 @@ run-ui:
 
 test:
 	$(PYTEST) tests/ -q
+
+build-dist:
+	$(PYTHON) -m build
+
+publish-pypi: build-dist
+	$(PYTHON) -m twine upload dist/*
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

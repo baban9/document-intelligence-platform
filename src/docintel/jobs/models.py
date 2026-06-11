@@ -24,6 +24,7 @@ class JobStatus(str, Enum):
 
 class JobType(str, Enum):
     PDF_STRUCTURE = "pdf_structure"
+    PDF_DETECT_SENSITIVE = "pdf_detect_sensitive"
 
 
 @dataclass

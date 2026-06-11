@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Protocol, Sequence
 
 import fitz
 
@@ -20,6 +20,17 @@ from docintel.services.pdf.ocr import (
 )
 from docintel.services.pdf.pii import PIIHit, detect_pii_in_text
 from docintel.services.pdf.search import search_for_text
+
+
+class ProgressCallback(Protocol):
+    def __call__(
+        self,
+        *,
+        stage: str,
+        pages_done: int,
+        pages_total: int,
+        message: str,
+    ) -> None: ...
 
 
 def _ensure_ocr_stack() -> None:
@@ -106,6 +117,7 @@ def detect_sensitive_pdf(
     pattern: str | None = None,
     min_score: float = 0.35,
     password: str | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> PIIDetectionResult:
     """
     Detect sensitive information with Presidio (and optional regex), annotate PDF.
@@ -123,7 +135,15 @@ def detect_sensitive_pdf(
     ocr_pages: list[int] = []
     findings: list[dict] = []
 
-    for page_index in range(pdf_doc.page_count):
+    total_pages = pdf_doc.page_count
+    for page_index in range(total_pages):
+        if progress_callback is not None:
+            progress_callback(
+                stage="detecting",
+                pages_done=page_index,
+                pages_total=total_pages,
+                message=f"Processing page {page_index + 1} of {total_pages}",
+            )
         page = pdf_doc[page_index]
         pages_processed += 1
         use_ocr = force_ocr or not page_has_native_text(page)
@@ -171,6 +191,14 @@ def detect_sensitive_pdf(
                     total_annotations += redact_matches(page, matched_values)
                 else:
                     total_annotations += highlight_matches(page, matched_values, selected_action)
+
+    if progress_callback is not None:
+        progress_callback(
+            stage="detecting",
+            pages_done=total_pages,
+            pages_total=total_pages,
+            message="Detection complete",
+        )
 
     _save_pdf(pdf_doc, Path(output_file))
     return PIIDetectionResult(

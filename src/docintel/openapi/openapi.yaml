@@ -1,0 +1,380 @@
+openapi: 3.0.3
+info:
+  title: Document Intelligence Platform API
+  version: 1.0.0
+  description: |
+    REST API for PDF annotation, scanned-document PII detection, LLM PDF structuring,
+    resume matching, and text summarization.
+
+    Long-running PDF tasks support async mode via Redis (`async=true`) and job polling
+    at `GET /v1/jobs/{job_id}`.
+
+    Authenticate with `Authorization: Bearer <api_key>` when `DOCINTEL_AUTH_REQUIRED=true`.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  contact:
+    name: Babandeep Singh
+    url: https://github.com/baban9/document-intelligence-platform
+
+servers:
+  - url: http://127.0.0.1:5000
+    description: Local development
+
+tags:
+  - name: health
+  - name: pdf
+  - name: jobs
+  - name: match
+  - name: text
+  - name: ops
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key or OIDC JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    JobStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        job_id:
+          type: string
+        job_type:
+          type: string
+          enum: [pdf_structure, pdf_detect_sensitive]
+        job_status:
+          type: string
+          enum: [queued, running, completed, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        progress_message:
+          type: string
+        pages_done:
+          type: integer
+        pages_total:
+          type: integer
+        download_url:
+          type: string
+        poll_url:
+          type: string
+        callback_url:
+          type: string
+        error:
+          type: string
+        result:
+          type: object
+
+    AsyncAccepted:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        job_id:
+          type: string
+        job_type:
+          type: string
+        job_status:
+          type: string
+          example: queued
+        poll_url:
+          type: string
+        message:
+          type: string
+
+    MatchRequest:
+      type: object
+      required: [resume, job_description]
+      properties:
+        resume:
+          type: string
+        job_description:
+          type: string
+        top_keywords:
+          type: integer
+          default: 25
+          minimum: 1
+          maximum: 100
+
+    SummarizeRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        sentences:
+          type: integer
+          default: 3
+          minimum: 1
+          maximum: 20
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /openapi.json:
+    get:
+      tags: [ops]
+      summary: OpenAPI specification
+      security: []
+      responses:
+        "200":
+          description: OpenAPI 3 document
+
+  /docs:
+    get:
+      tags: [ops]
+      summary: Swagger UI
+      security: []
+      responses:
+        "200":
+          description: Interactive API documentation
+
+  /metrics:
+    get:
+      tags: [ops]
+      summary: Request metrics
+      security: []
+      responses:
+        "200":
+          description: In-process metrics snapshot
+
+  /v1/pdf/annotate:
+    post:
+      tags: [pdf]
+      summary: Regex search and annotate a PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, pattern]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                pattern:
+                  type: string
+                action:
+                  type: string
+                  enum: [Highlight, Redact, Frame, Underline, Squiggly, Strikeout, Remove]
+                pages:
+                  type: string
+                  description: Comma-separated zero-based page indexes
+                format:
+                  type: string
+                  enum: [file, json]
+      responses:
+        "200":
+          description: Annotated PDF or JSON metadata
+        "400":
+          description: Invalid request
+
+  /v1/pdf/entities:
+    get:
+      tags: [pdf]
+      summary: List Presidio entity types
+      responses:
+        "200":
+          description: Supported entities
+
+  /v1/pdf/detect-sensitive:
+    post:
+      tags: [pdf]
+      summary: Detect PII and annotate PDF (OCR + Presidio)
+      parameters:
+        - name: async
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Queue job and return 202 when true
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [file, json]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                action:
+                  type: string
+                entities:
+                  type: string
+                  description: Comma-separated Presidio entity types
+                pattern:
+                  type: string
+                force_ocr:
+                  type: boolean
+                add_text_layer:
+                  type: boolean
+                min_score:
+                  type: number
+                callback_url:
+                  type: string
+                  format: uri
+                async:
+                  type: boolean
+      responses:
+        "200":
+          description: Processed PDF or JSON report
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
+
+  /v1/pdf/structure:
+    post:
+      tags: [pdf]
+      summary: Structure scanned PDF with OCR and LLM
+      parameters:
+        - name: async
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [file, json]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                mode:
+                  type: string
+                  enum: [curate, searchable]
+                force_ocr:
+                  type: boolean
+                redact_before_llm:
+                  type: boolean
+                callback_url:
+                  type: string
+                  format: uri
+                async:
+                  type: boolean
+      responses:
+        "200":
+          description: Structured PDF or JSON metadata
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
+
+  /v1/pdf/files/{job_id}/{filename}:
+    get:
+      tags: [pdf]
+      summary: Download a generated PDF
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found
+
+  /v1/jobs/{job_id}:
+    get:
+      tags: [jobs]
+      summary: Poll async job status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatus"
+        "404":
+          description: Job not found
+
+  /v1/match/resume:
+    post:
+      tags: [match]
+      summary: Score resume against job description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchRequest"
+      responses:
+        "200":
+          description: Match score and keywords
+
+  /v1/text/summarize:
+    post:
+      tags: [text]
+      summary: Extractive TextRank summarization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SummarizeRequest"
+      responses:
+        "200":
+          description: Summary sentences

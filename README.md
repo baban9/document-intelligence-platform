@@ -8,7 +8,30 @@
 
 Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), LLM PDF structuring, resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
 
-**Version:** 0.9.0
+**Version:** 1.0.0
+
+---
+
+## Install from PyPI
+
+```bash
+pip install docintel
+
+# Full stack (OCR, LLM, jobs, auth, UI)
+pip install "docintel[all]"
+```
+
+**Python client:**
+
+```python
+from docintel import DocintelClient
+
+client = DocintelClient("http://127.0.0.1:5000", api_key="your-key")
+result = client.match_resume(resume_text, job_description)
+pdf_bytes = client.structure_pdf("scan.pdf", async_job=True)
+```
+
+**Publish a release to PyPI** (maintainers): tag `v1.0.0` and push, or run `make publish-pypi` with `TWINE_USERNAME` / `TWINE_PASSWORD` or PyPI trusted publishing configured in GitHub Actions.
 
 ---
 
@@ -27,6 +50,8 @@ make docker-up
 | **Gradio GUI** | http://127.0.0.1:7860 | Upload PDFs, no code |
 | **REST API** | http://127.0.0.1:5000 | Integrations, curl, apps |
 | Health | http://127.0.0.1:5000/health | Load balancer probe |
+| API docs | http://127.0.0.1:5000/docs | Swagger UI (OpenAPI) |
+| OpenAPI | http://127.0.0.1:5000/openapi.json | Machine-readable contract |
 | Metrics | http://127.0.0.1:5000/metrics | Request counts and latency |
 
 First startup can take a few minutes while EasyOCR and Presidio models download inside the container.
@@ -193,6 +218,8 @@ Decision records: [modular monolith](docs/adr/001-modular-monolith.md), [OCR + P
 
 ## API reference
 
+OpenAPI spec: `GET /openapi.json` | Interactive docs: `GET /docs`
+
 ### Sensitive PDF detection (scanned + digital)
 
 When native PDF text is empty, the service runs **EasyOCR (English)**, analyzes text with **Microsoft Presidio**, and returns a new PDF with highlights or redactions on bounding boxes. Optionally embeds an invisible text layer so the output stays searchable.
@@ -228,6 +255,17 @@ curl http://127.0.0.1:5000/v1/pdf/entities
 | `force_ocr` | No | `true` to OCR every page |
 | `add_text_layer` | No | `true` (default) adds searchable invisible text |
 | `min_score` | No | Presidio confidence threshold (default `0.35`) |
+| `async` | No | `true` queues the job (returns `202`); poll `GET /v1/jobs/<job_id>` |
+| `callback_url` | No | Webhook URL when async job completes |
+
+**Async mode:**
+
+```bash
+curl -X POST "http://127.0.0.1:5000/v1/pdf/detect-sensitive?async=true" \
+  -H "Authorization: Bearer your-key" \
+  -F "file=@scanned_contract.pdf" \
+  -F "action=Highlight"
+```
 
 **Default Presidio entities:** `EMAIL_ADDRESS`, `PHONE_NUMBER`, `US_SSN`, `CREDIT_CARD`, `US_BANK_NUMBER`, `US_DRIVER_LICENSE`, `US_ITIN`, `US_PASSPORT`, `PERSON`, `LOCATION`, `DATE_TIME`, `IP_ADDRESS`, `IBAN_CODE`, `MEDICAL_LICENSE`, `URL`.
 
@@ -449,6 +487,8 @@ document-intelligence-platform/
 | `make setup` | venv + core package |
 | `make setup-ocr` | EasyOCR + Presidio + spaCy model |
 | `make setup-llm` | OpenAI client for PDF structuring |
+| `make build-dist` | Build PyPI wheel and sdist |
+| `make publish-pypi` | Upload to PyPI with twine |
 | `make setup-ui` | Gradio GUI dependencies |
 | `make run` | Start API (:5000) |
 | `make run-ui` | Start Gradio (:7860) |

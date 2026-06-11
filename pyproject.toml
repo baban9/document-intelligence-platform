@@ -4,20 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel"
-version = "0.9.0"
-description = "Document intelligence platform: PDF annotation, resume matching, and text summarization."
+version = "1.0.0"
+description = "Document intelligence API and Python client for PDF OCR, PII detection, LLM structuring, matching, and summarization."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 authors = [{name = "Babandeep Singh"}]
-keywords = ["nlp", "pdf", "flask", "document-ai", "resume-matching"]
+keywords = [
+    "nlp", "pdf", "flask", "document-ai", "resume-matching",
+    "ocr", "pii", "presidio", "openapi", "document-intelligence",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Framework :: Flask",
     "Topic :: Text Processing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 dependencies = [
     "flask>=3.0.3",
@@ -27,12 +36,15 @@ dependencies = [
     "networkx>=3.2.1",
     "numpy>=1.26.4",
     "gunicorn>=23.0.0",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.3",
     "build>=1.2.2",
+    "twine>=5.1.1",
     "fakeredis>=2.26.2",
 ]
 ocr = [
@@ -58,6 +70,20 @@ auth = [
     "PyJWT>=2.9.0",
     "cryptography>=43.0.0",
 ]
+all = [
+    "easyocr>=1.7.2",
+    "presidio-analyzer>=2.2.354",
+    "spacy>=3.7.0",
+    "opencv-python-headless>=4.10.0",
+    "torch>=2.4.1",
+    "openai>=1.54.0",
+    "redis>=5.0.8",
+    "rq>=1.16.2",
+    "flask-limiter>=3.8.0",
+    "PyJWT>=2.9.0",
+    "cryptography>=43.0.0",
+    "gradio>=4.44.0",
+]
 
 [project.scripts]
 docintel = "docintel.cli:main"
@@ -66,10 +92,14 @@ docintel-ui = "docintel.ui:launch_ui"
 [project.urls]
 Homepage = "https://github.com/baban9/document-intelligence-platform"
 Repository = "https://github.com/baban9/document-intelligence-platform"
+Documentation = "https://github.com/baban9/document-intelligence-platform#readme"
 Issues = "https://github.com/baban9/document-intelligence-platform/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+docintel = ["openapi/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

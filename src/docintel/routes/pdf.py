@@ -165,6 +165,9 @@ def detect_sensitive():
     except ValueError:
         return jsonify({"error": "Field 'min_score' must be a number."}), 400
 
+    callback_url = request.form.get("callback_url", "").strip() or None
+    run_async = _parse_async_flag()
+
     job_id = uuid.uuid4().hex[:12]
     work_dir = _upload_dir() / job_id
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -172,6 +175,20 @@ def detect_sensitive():
     input_path = work_dir / filename
     output_path = work_dir / f"sensitive_{filename}"
     upload.save(input_path)
+
+    if run_async:
+        return _enqueue_detect_sensitive_job(
+            job_id=job_id,
+            input_path=input_path,
+            output_path=output_path,
+            action=action,
+            entities=entities,
+            pattern=pattern,
+            force_ocr=force_ocr,
+            add_text_layer=add_text_layer,
+            min_score=min_score,
+            callback_url=callback_url,
+        )
 
     try:
         result = detect_sensitive_pdf(
@@ -320,21 +337,18 @@ def _enqueue_structure_job(
     redact_before_llm: bool,
     callback_url: str | None,
 ):
+    from docintel.jobs.helpers import enqueue_async_response
+    from docintel.jobs.models import JobType
     from docintel.jobs.queue import enqueue_structure_job
-    from docintel.jobs.store import jobs_enabled, ping_redis
-    from docintel.jobs.tasks import create_queued_job
 
-    if not jobs_enabled():
-        return jsonify({"error": "Async jobs are disabled on this server."}), 503
-    if not ping_redis():
-        return jsonify(
-            {
-                "error": "Redis is not reachable. Start Redis or set DOCINTEL_REDIS_URL.",
-                "hint": "Use async=false for synchronous processing without a queue.",
-            }
-        ), 503
+    accepted = enqueue_async_response(
+        job_id=job_id,
+        job_type=JobType.PDF_STRUCTURE,
+        callback_url=callback_url,
+    )
+    if accepted[1] != 202:
+        return accepted
 
-    create_queued_job(job_id, callback_url=callback_url)
     enqueue_structure_job(
         job_id=job_id,
         input_path=str(input_path),
@@ -344,17 +358,47 @@ def _enqueue_structure_job(
         output_filename=output_path.name,
         redact_before_llm=redact_before_llm,
     )
+    return accepted
 
-    payload = {
-        "status": "ok",
-        "job_id": job_id,
-        "job_status": "queued",
-        "poll_url": f"/v1/jobs/{job_id}",
-        "message": "Job queued. Poll poll_url until job_status is completed.",
-    }
-    response = jsonify(payload)
-    response.status_code = 202
-    return response
+
+def _enqueue_detect_sensitive_job(
+    *,
+    job_id: str,
+    input_path: Path,
+    output_path: Path,
+    action: Action,
+    entities: list[str] | None,
+    pattern: str | None,
+    force_ocr: bool,
+    add_text_layer: bool,
+    min_score: float,
+    callback_url: str | None,
+):
+    from docintel.jobs.helpers import enqueue_async_response
+    from docintel.jobs.models import JobType
+    from docintel.jobs.queue import enqueue_detect_sensitive_job
+
+    accepted = enqueue_async_response(
+        job_id=job_id,
+        job_type=JobType.PDF_DETECT_SENSITIVE,
+        callback_url=callback_url,
+    )
+    if accepted[1] != 202:
+        return accepted
+
+    enqueue_detect_sensitive_job(
+        job_id=job_id,
+        input_path=str(input_path),
+        output_path=str(output_path),
+        output_filename=output_path.name,
+        action=action.value,
+        force_ocr=force_ocr,
+        add_text_layer=add_text_layer,
+        min_score=min_score,
+        entities=entities,
+        pattern=pattern,
+    )
+    return accepted
 
 
 @pdf_bp.get("/files/<job_id>/<filename>")

@@ -6,7 +6,7 @@ from flask import Flask, g, jsonify, request
 
 from docintel.auth.api_keys import auth_required, extract_bearer_token, validate_credentials
 
-PUBLIC_PREFIXES = ("/health",)
+PUBLIC_PREFIXES = ("/health", "/docs", "/openapi.json", "/metrics")
 
 
 def register_auth(app: Flask) -> None:

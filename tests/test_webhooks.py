@@ -53,7 +53,11 @@ def test_run_structure_job_updates_progress(
     input_path = work_dir / "sample.pdf"
     output_path = work_dir / "structured_sample.pdf"
     input_path.write_bytes(sample_pdf.read_bytes())
-    create_queued_job(job_id, callback_url="https://example.com/hook")
+    create_queued_job(
+        job_id,
+        job_type=JobType.PDF_STRUCTURE,
+        callback_url="https://example.com/hook",
+    )
 
     def fake_structure(page_texts, progress_callback=None):
         pages = [

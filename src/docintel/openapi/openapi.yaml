@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Document Intelligence Platform API
-  version: 1.0.0
+  version: 1.0.2
   description: |
     REST API for PDF annotation, scanned-document PII detection, LLM PDF structuring,
     resume matching, and text summarization.
@@ -53,7 +53,7 @@ components:
           type: string
         job_type:
           type: string
-          enum: [pdf_structure, pdf_detect_sensitive]
+          enum: [pdf_structure, pdf_detect_sensitive, pdf_annotate, match_resume, batch]
         job_status:
           type: string
           enum: [queued, running, completed, failed]
@@ -109,6 +109,12 @@ components:
           default: 25
           minimum: 1
           maximum: 100
+        callback_url:
+          type: string
+          format: uri
+        async:
+          type: boolean
+          default: false
 
     SummarizeRequest:
       type: object
@@ -166,6 +172,18 @@ paths:
     post:
       tags: [pdf]
       summary: Regex search and annotate a PDF
+      parameters:
+        - name: async
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Queue job and return 202 when true
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [file, json]
       requestBody:
         required: true
         content:
@@ -188,9 +206,20 @@ paths:
                 format:
                   type: string
                   enum: [file, json]
+                callback_url:
+                  type: string
+                  format: uri
+                async:
+                  type: boolean
       responses:
         "200":
           description: Annotated PDF or JSON metadata
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
         "400":
           description: Invalid request
 
@@ -355,6 +384,13 @@ paths:
     post:
       tags: [match]
       summary: Score resume against job description
+      parameters:
+        - name: async
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Queue job and return 202 when true
       requestBody:
         required: true
         content:
@@ -364,6 +400,12 @@ paths:
       responses:
         "200":
           description: Match score and keywords
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
 
   /v1/text/summarize:
     post:

@@ -8,18 +8,20 @@
 
 Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), LLM PDF structuring, resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
 
-**Version:** 1.0.0
+**Version:** 1.0.2
 
 ---
 
 ## Install from PyPI
 
 ```bash
-pip install docintel
+pip install docintel-platform
 
 # Full stack (OCR, LLM, jobs, auth, UI)
-pip install "docintel[all]"
+pip install "docintel-platform[all]"
 ```
+
+PyPI: https://pypi.org/project/docintel-platform/
 
 **Python client:**
 
@@ -31,7 +33,7 @@ result = client.match_resume(resume_text, job_description)
 pdf_bytes = client.structure_pdf("scan.pdf", async_job=True)
 ```
 
-**Publish a release to PyPI** (maintainers): tag `v1.0.0` and push, or run `make publish-pypi` with `TWINE_USERNAME` / `TWINE_PASSWORD` or PyPI trusted publishing configured in GitHub Actions.
+**Publish a release to PyPI** (maintainers): tag `v1.0.2` and push, or run `make publish-pypi` with trusted publishing on project `docintel-platform`.
 
 ---
 
@@ -358,7 +360,15 @@ curl -X POST http://127.0.0.1:5000/v1/pdf/annotate \
 | `Underline` / `Squiggly` / `Strikeout` | Text markup |
 | `Remove` | Delete existing annotations |
 
-Optional: `pages` (comma-separated, zero-based), `?format=json` for metadata + download URL.
+Optional: `pages` (comma-separated, zero-based), `?format=json` for metadata + download URL, `?async=true` to queue the job.
+
+```bash
+curl -X POST "http://127.0.0.1:5000/v1/pdf/annotate?async=true" \
+  -H "Authorization: Bearer your-key" \
+  -F "file=@contract.pdf" \
+  -F "pattern=CONFIDENTIAL" \
+  -F "action=Redact"
+```
 
 ---
 
@@ -373,6 +383,8 @@ curl -X POST http://127.0.0.1:5000/v1/match/resume \
     "top_keywords": 10
   }'
 ```
+
+Async mode: add `?async=true` or `"async": true` in the JSON body, then poll `GET /v1/jobs/<job_id>`.
 
 ```json
 {

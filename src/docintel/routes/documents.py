@@ -57,6 +57,36 @@ def _resolve_text_from_upload_or_body(field_name: str = "text") -> tuple[str | N
     return text, None, None
 
 
+def _resolve_compare_text(field_name: str, file_field: str) -> tuple[str | None, dict | None, int | None]:
+    payload = request.get_json(silent=True) or {}
+    value = payload.get(field_name)
+    if isinstance(value, str) and value.strip():
+        return value, None, None
+
+    form_value = request.form.get(field_name)
+    if isinstance(form_value, str) and form_value.strip():
+        return form_value, None, None
+
+    upload = read_upload(request, file_field)
+    if upload is None:
+        return None, None, None
+
+    with tempfile.TemporaryDirectory(prefix="docintel-compare-") as temp_dir:
+        saved = save_upload(upload, Path(temp_dir))
+        try:
+            extraction = extract_document_text(
+                saved.path,
+                filename=saved.filename,
+                content_type=saved.content_type,
+                identification=saved.identification,
+            )
+        except ValueError as exc:
+            return None, {"error": str(exc), "field": file_field}, 415
+        except RuntimeError as exc:
+            return None, {"error": str(exc), "field": file_field}, 503
+        return extraction.text, None, None
+
+
 def _parse_sentence_count() -> tuple[int | None, dict | None, int | None]:
     payload = request.get_json(silent=True) or {}
     raw = payload.get("sentences", request.form.get("sentences", DEFAULT_SENTENCE_COUNT))
@@ -216,11 +246,17 @@ def detect_pii_document():
 @limiter.limit("120 per hour")
 def compare_documents():
     """Compare two policy or contract texts for overlap."""
-    payload = request.get_json(silent=True) or {}
-    text_a = payload.get("text_a", "")
-    text_b = payload.get("text_b", "")
-    if not isinstance(text_a, str) or not isinstance(text_b, str):
-        return jsonify({"error": "Fields 'text_a' and 'text_b' must be strings."}), 400
+    text_a, error_a, status_a = _resolve_compare_text("text_a", "file_a")
+    if error_a is not None:
+        return jsonify(error_a), status_a
+    text_b, error_b, status_b = _resolve_compare_text("text_b", "file_b")
+    if error_b is not None:
+        return jsonify(error_b), status_b
+
+    if not text_a:
+        return jsonify({"error": "Provide text_a/file_a for the first document."}), 400
+    if not text_b:
+        return jsonify({"error": "Provide text_b/file_b for the second document."}), 400
 
     try:
         result = compare_texts(text_a, text_b)

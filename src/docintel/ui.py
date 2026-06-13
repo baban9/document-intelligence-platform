@@ -241,6 +241,98 @@ def summarize_text_ui(text: str, sentences: int) -> str:
     return json.dumps(response.json(), indent=2)
 
 
+def _post_document_file(endpoint: str, path: Path, *, data: dict | None = None) -> requests.Response:
+    with path.open("rb") as handle:
+        return requests.post(
+            f"{API_BASE}{endpoint}",
+            files={"file": (path.name, handle, "application/octet-stream")},
+            data=data or {},
+            headers=_api_headers(),
+            timeout=120,
+        )
+
+
+def identify_document_ui(upload_file: Any) -> str:
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+    response = _post_document_file("/v1/documents/identify", path)
+    if not response.ok:
+        return _api_error(response)
+    return json.dumps(response.json(), indent=2)
+
+
+def extract_document_text_ui(upload_file: Any) -> str:
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+    response = _post_document_file("/v1/documents/extract-text", path)
+    if not response.ok:
+        return _api_error(response)
+    payload = response.json()
+    preview = payload.get("text", "")
+    if len(preview) > 2000:
+        preview = preview[:2000] + "\n...(truncated)"
+    payload["text_preview"] = preview
+    payload.pop("text", None)
+    return json.dumps(payload, indent=2)
+
+
+def classify_document_ui(upload_file: Any) -> str:
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+    response = _post_document_file("/v1/documents/classify", path)
+    if not response.ok:
+        return _api_error(response)
+    return json.dumps(response.json(), indent=2)
+
+
+def summarize_document_ui(upload_file: Any, sentences: int) -> str:
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+    response = _post_document_file(
+        "/v1/documents/summarize",
+        path,
+        data={"sentences": str(int(sentences))},
+    )
+    if not response.ok:
+        return _api_error(response)
+    return json.dumps(response.json(), indent=2)
+
+
+def detect_pii_document_ui(upload_file: Any) -> str:
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+    response = _post_document_file("/v1/documents/detect-pii", path)
+    if not response.ok:
+        return _api_error(response)
+    return json.dumps(response.json(), indent=2)
+
+
+def compare_documents_ui(file_a: Any, file_b: Any) -> str:
+    path_a = resolve_upload_path(file_a)
+    path_b = resolve_upload_path(file_b)
+    if path_a is None or path_b is None:
+        return "Upload two documents to compare."
+
+    with path_a.open("rb") as handle_a, path_b.open("rb") as handle_b:
+        response = requests.post(
+            f"{API_BASE}/v1/documents/compare",
+            files={
+                "file_a": (path_a.name, handle_a, "application/octet-stream"),
+                "file_b": (path_b.name, handle_b, "application/octet-stream"),
+            },
+            headers=_api_headers(),
+            timeout=120,
+        )
+    if not response.ok:
+        return _api_error(response)
+    return json.dumps(response.json(), indent=2)
+
+
 def build_ui():
     import gradio as gr
 
@@ -341,6 +433,42 @@ def build_ui():
                 summarize_text_ui,
                 inputs=[source_text, sentence_count],
                 outputs=summary_output,
+            )
+
+        office_types = [".pdf", ".docx", ".xlsx", ".csv", ".txt", ".md", ".json"]
+        with gr.Tab("Document tools"):
+            gr.Markdown(
+                "Identify, extract, classify, summarize, scan for PII, and compare office documents. "
+                "Requires `pip install -e '.[documents]'` for Word and Excel."
+            )
+            with gr.Row():
+                doc_file = gr.File(label="Document upload", file_types=office_types)
+                compare_file_a = gr.File(label="Compare document A", file_types=office_types)
+                compare_file_b = gr.File(label="Compare document B", file_types=office_types)
+            doc_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
+            with gr.Row():
+                identify_btn = gr.Button("Identify")
+                extract_btn = gr.Button("Extract text")
+                classify_btn = gr.Button("Classify")
+            with gr.Row():
+                summarize_doc_btn = gr.Button("Summarize file")
+                detect_pii_btn = gr.Button("Detect PII")
+                compare_btn = gr.Button("Compare files")
+            doc_output = gr.Textbox(label="Document tools result", lines=14)
+
+            identify_btn.click(identify_document_ui, inputs=[doc_file], outputs=doc_output)
+            extract_btn.click(extract_document_text_ui, inputs=[doc_file], outputs=doc_output)
+            classify_btn.click(classify_document_ui, inputs=[doc_file], outputs=doc_output)
+            summarize_doc_btn.click(
+                summarize_document_ui,
+                inputs=[doc_file, doc_sentences],
+                outputs=doc_output,
+            )
+            detect_pii_btn.click(detect_pii_document_ui, inputs=[doc_file], outputs=doc_output)
+            compare_btn.click(
+                compare_documents_ui,
+                inputs=[compare_file_a, compare_file_b],
+                outputs=doc_output,
             )
 
     return demo

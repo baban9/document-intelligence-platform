@@ -433,6 +433,22 @@ Compare two texts:
 curl -X POST http://127.0.0.1:5000/v1/documents/compare \
   -H "Content-Type: application/json" \
   -d '{"text_a": "Refund policy ...", "text_b": "Return policy ..."}'
+
+curl -X POST http://127.0.0.1:5000/v1/documents/compare \
+  -F "file_a=@policy_v1.txt" \
+  -F "file_b=@policy_v2.txt"
+```
+
+Summarize or scan PII from any supported upload:
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/summarize \
+  -F "file=@report.docx" \
+  -F "sentences=3"
+
+curl -X POST http://127.0.0.1:5000/v1/documents/detect-pii \
+  -F "file=@notes.txt" \
+  -F "vertical=healthcare"
 ```
 
 Vertical Presidio presets for PDF sensitive scan:

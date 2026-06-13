@@ -73,3 +73,47 @@ def enqueue_detect_sensitive_job(
         result_ttl=DEFAULT_RESULT_TTL,
         failure_ttl=DEFAULT_FAILURE_TTL,
     )
+
+
+def enqueue_annotate_job(
+    job_id: str,
+    input_path: str,
+    output_path: str,
+    output_filename: str,
+    pattern: str,
+    action: str,
+    pages: list[int] | None = None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_annotate_pdf_job",
+        job_id=job_id,
+        input_path=input_path,
+        output_path=output_path,
+        output_filename=output_filename,
+        pattern=pattern,
+        action=action,
+        pages=pages,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_match_job(
+    job_id: str,
+    resume: str,
+    job_description: str,
+    top_keywords: int,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_match_resume_job",
+        job_id=job_id,
+        resume=resume,
+        job_description=job_description,
+        top_keywords=top_keywords,
+        job_timeout=300,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )

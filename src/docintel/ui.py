@@ -44,6 +44,41 @@ def _api_error(response: requests.Response) -> str:
         return response.text or f"HTTP {response.status_code}"
 
 
+def _poll_job_until_complete(
+    poll_url: str,
+    *,
+    timeout_seconds: int = 600,
+    interval_seconds: float = 2.0,
+) -> tuple[dict | None, str | None]:
+    """Poll GET /v1/jobs/{id} until completed or failed."""
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        poll = requests.get(f"{API_BASE}{poll_url}", headers=_api_headers(), timeout=30)
+        if not poll.ok:
+            return None, _api_error(poll)
+        payload = poll.json()
+        job_status = payload.get("job_status")
+        if job_status == "completed":
+            return payload, None
+        if job_status == "failed":
+            return None, payload.get("error", "Job failed.")
+        time.sleep(interval_seconds)
+    return None, "Job timed out while polling."
+
+
+def _download_pdf_from_job(payload: dict, suffix: str) -> tuple[Any, str | None]:
+    download_url = payload.get("download_url")
+    if not download_url:
+        return None, "Processed PDF is not ready yet."
+    download = requests.get(f"{API_BASE}{download_url}", headers=_api_headers(), timeout=120)
+    if not download.ok:
+        return None, "Processed PDF could not be downloaded."
+    output = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    output.write(download.content)
+    output.close()
+    return output.name, None
+
+
 def check_api_health() -> str:
     try:
         response = requests.get(f"{API_BASE}/health", timeout=10)
@@ -63,21 +98,36 @@ def annotate_pdf_ui(pdf_file: Any, pattern: str, action: str) -> tuple[Any, str]
         return None, "Enter a search pattern."
     with path.open("rb") as handle:
         response = requests.post(
-            f"{API_BASE}/v1/pdf/annotate",
+            f"{API_BASE}/v1/pdf/annotate?async=true",
             files={"file": (path.name, handle, "application/pdf")},
             data={"pattern": pattern, "action": action},
             headers=_api_headers(),
             timeout=120,
         )
 
-    if not response.ok:
+    if response.status_code == 202:
+        payload = response.json()
+        poll_url = payload.get("poll_url")
+        if not poll_url:
+            return None, "Async job started but poll_url is missing."
+        payload, error = _poll_job_until_complete(poll_url)
+        if error:
+            return None, error
+    elif response.ok:
+        matches = response.headers.get("X-Docintel-Matches", "?")
+        output = tempfile.NamedTemporaryFile(delete=False, suffix="_annotated.pdf")
+        output.write(response.content)
+        output.close()
+        return output.name, f"Annotated PDF ready. Matches: {matches}"
+    else:
         return None, _api_error(response)
 
-    output = tempfile.NamedTemporaryFile(delete=False, suffix="_annotated.pdf")
-    output.write(response.content)
-    output.close()
-    matches = response.headers.get("X-Docintel-Matches", "?")
-    return output.name, f"Annotated PDF ready. Matches: {matches}"
+    output_path, error = _download_pdf_from_job(payload, "_annotated.pdf")
+    if error:
+        return None, error
+    result = payload.get("result") or payload
+    matches = result.get("matches", "?")
+    return output_path, f"Annotated PDF ready. Matches: {matches}"
 
 
 def detect_sensitive_ui(
@@ -100,34 +150,38 @@ def detect_sensitive_ui(
 
     with path.open("rb") as handle:
         response = requests.post(
-            f"{API_BASE}/v1/pdf/detect-sensitive?format=json",
+            f"{API_BASE}/v1/pdf/detect-sensitive?async=true&format=json",
             files={"file": (path.name, handle, "application/pdf")},
             data=data,
             headers=_api_headers(),
-            timeout=300,
+            timeout=120,
         )
 
-    if not response.ok:
+    if response.status_code == 202:
+        enqueue_payload = response.json()
+        poll_url = enqueue_payload.get("poll_url")
+        if not poll_url:
+            return None, "Async job started but poll_url is missing."
+        payload, error = _poll_job_until_complete(poll_url, timeout_seconds=900)
+        if error:
+            return None, error
+    elif response.ok:
+        payload = response.json()
+    else:
         return None, _api_error(response)
 
-    payload = response.json()
-    download = requests.get(
-        f"{API_BASE}{payload['download_url']}", headers=_api_headers(), timeout=120
-    )
-    if not download.ok:
-        return None, "Processed PDF could not be downloaded."
+    output_path, error = _download_pdf_from_job(payload, "_sensitive.pdf")
+    if error:
+        return None, error
 
-    output = tempfile.NamedTemporaryFile(delete=False, suffix="_sensitive.pdf")
-    output.write(download.content)
-    output.close()
-
+    result = payload.get("result") or payload
     summary = {
-        "matches": payload.get("matches"),
-        "finding_count": payload.get("finding_count"),
-        "ocr_pages": payload.get("ocr_pages"),
-        "findings": payload.get("findings", [])[:20],
+        "matches": result.get("matches"),
+        "finding_count": result.get("finding_count"),
+        "ocr_pages": result.get("ocr_pages"),
+        "findings": result.get("findings", [])[:20],
     }
-    return output.name, json.dumps(summary, indent=2)
+    return output_path, json.dumps(summary, indent=2)
 
 
 def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str:
@@ -135,7 +189,7 @@ def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str
         return "Provide both resume and job description text."
 
     response = requests.post(
-        f"{API_BASE}/v1/match/resume",
+        f"{API_BASE}/v1/match/resume?async=true",
         json={
             "resume": resume,
             "job_description": job_description,
@@ -144,6 +198,16 @@ def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str
         headers=_api_headers(),
         timeout=60,
     )
+    if response.status_code == 202:
+        enqueue_payload = response.json()
+        poll_url = enqueue_payload.get("poll_url")
+        if not poll_url:
+            return "Async job started but poll_url is missing."
+        payload, error = _poll_job_until_complete(poll_url, timeout_seconds=120)
+        if error:
+            return error
+        result = payload.get("result") or payload
+        return json.dumps({"status": "ok", **result}, indent=2)
     if not response.ok:
         return _api_error(response)
     return json.dumps(response.json(), indent=2)
@@ -168,36 +232,17 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
         poll_url = payload.get("poll_url")
         if not poll_url:
             return None, "Async job started but poll_url is missing."
-        for _ in range(300):
-            poll = requests.get(f"{API_BASE}{poll_url}", headers=_api_headers(), timeout=30)
-            if not poll.ok:
-                return None, _api_error(poll)
-            job_payload = poll.json()
-            job_status = job_payload.get("job_status")
-            if job_status == "completed":
-                payload = job_payload
-                break
-            if job_status == "failed":
-                return None, job_payload.get("error", "Structure job failed.")
-            time.sleep(2)
-        else:
-            return None, "Structure job timed out while polling."
+        payload, error = _poll_job_until_complete(poll_url, timeout_seconds=900)
+        if error:
+            return None, error
     elif response.ok:
         payload = response.json()
     else:
         return None, _api_error(response)
 
-    download_url = payload.get("download_url")
-    if not download_url:
-        return None, "Structured PDF is not ready yet."
-
-    download = requests.get(f"{API_BASE}{download_url}", headers=_api_headers(), timeout=120)
-    if not download.ok:
-        return None, "Structured PDF could not be downloaded."
-
-    output = tempfile.NamedTemporaryFile(delete=False, suffix="_structured.pdf")
-    output.write(download.content)
-    output.close()
+    output_path, error = _download_pdf_from_job(payload, "_structured.pdf")
+    if error:
+        return None, error
 
     result = payload.get("result") or payload
     summary = {
@@ -207,7 +252,7 @@ def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, st
         "pages_processed": result.get("pages_processed"),
         "ocr_pages": result.get("ocr_pages"),
     }
-    return output.name, json.dumps(summary, indent=2)
+    return output_path, json.dumps(summary, indent=2)
 
 
 def summarize_text_ui(text: str, sentences: int) -> str:

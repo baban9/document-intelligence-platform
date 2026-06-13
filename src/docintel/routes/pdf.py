@@ -69,6 +69,20 @@ def annotate():
     output_path = work_dir / f"annotated_{filename}"
     upload.save(input_path)
 
+    callback_url = request.form.get("callback_url", "").strip() or None
+    run_async = _parse_async_flag()
+
+    if run_async:
+        return _enqueue_annotate_job(
+            job_id=job_id,
+            input_path=input_path,
+            output_path=output_path,
+            pattern=pattern,
+            action=action,
+            pages=pages,
+            callback_url=callback_url,
+        )
+
     try:
         result = annotate_pdf(
             input_file=input_path,
@@ -397,6 +411,40 @@ def _enqueue_detect_sensitive_job(
         min_score=min_score,
         entities=entities,
         pattern=pattern,
+    )
+    return accepted
+
+
+def _enqueue_annotate_job(
+    *,
+    job_id: str,
+    input_path: Path,
+    output_path: Path,
+    pattern: str,
+    action: Action,
+    pages: list[int] | None,
+    callback_url: str | None,
+):
+    from docintel.jobs.helpers import enqueue_async_response
+    from docintel.jobs.models import JobType
+    from docintel.jobs.queue import enqueue_annotate_job
+
+    accepted = enqueue_async_response(
+        job_id=job_id,
+        job_type=JobType.PDF_ANNOTATE,
+        callback_url=callback_url,
+    )
+    if accepted[1] != 202:
+        return accepted
+
+    enqueue_annotate_job(
+        job_id=job_id,
+        input_path=str(input_path),
+        output_path=str(output_path),
+        output_filename=output_path.name,
+        pattern=pattern,
+        action=action.value,
+        pages=pages,
     )
     return accepted
 

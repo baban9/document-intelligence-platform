@@ -5,15 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "docintel-platform"
 version = "1.0.2"
-description = "Document intelligence API and Python client for PDF OCR, PII detection, LLM structuring, matching, and summarization."
+description = "Enterprise document intelligence API for PDF compliance, extraction, structuring, and summarization."
 readme = "README.md"
 license = "MIT"
 license-files = []
 requires-python = ">=3.9"
 authors = [{name = "Babandeep Singh"}]
 keywords = [
-    "nlp", "pdf", "flask", "document-ai", "resume-matching",
-    "ocr", "pii", "presidio", "openapi", "document-intelligence",
+    "nlp", "pdf", "flask", "document-ai",
+    "ocr", "pii", "presidio", "openapi", "document-intelligence", "compliance",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -1,32 +1,32 @@
 # ADR 001: Modular monolith first
 
-**Status:** Accepted  
+**Status:** Accepted (updated 2026-06)  
 **Date:** 2025-06-08  
 **Context:** Milestone 1
 
 ## Decision
 
-Build the document intelligence platform as a **single Flask application** with separate service modules (`pdf`, `matching`, `summary`) instead of three microservices on day one.
+Build the document intelligence platform as a **single Flask application** with capability-oriented modules (Compliance, Extraction, Understanding) and shared Platform services (jobs, auth, storage, ops) instead of microservices on day one.
 
 ## Rationale
 
-- All three features share the same deployment profile: CPU-bound Python, similar latency targets, same auth and logging needs later.
-- One repo simplifies eval, Docker, and CI for a portfolio flagship.
-- Module boundaries in code allow splitting into services later if traffic or team ownership diverges.
+- Document workflows share deployment profile: CPU-bound Python, async jobs, common auth and observability.
+- One repo simplifies Docker, CI, and eval for enterprise rollout.
+- Capability boundaries allow team ownership by function (Legal, Finance, Ops) without service sprawl.
 
 ## Consequences
 
-- Positive: faster iteration, one `make test`, one Docker image.
-- Negative: scaling one hot endpoint requires process-level scaling of the whole app until split.
-- Mitigation: keep services stateless; use blueprints and clear interfaces so extraction is mechanical.
+- Positive: faster iteration, one `make test`, one Docker image, shared job queue.
+- Negative: scaling one hot endpoint scales the whole app until split.
+- Mitigation: stateless workers, S3 artifacts, clear capability packages for mechanical extraction later.
 
 ## Alternatives considered
 
 | Option | Why not now |
 |--------|-------------|
-| Three microservices | Too much ops overhead for v0.1 |
+| Three microservices | Too much ops overhead for initial rollout |
 | Serverless functions | Cold starts hurt PDF upload flows |
-| FastAPI | Flask matches existing portfolio and hiring signal for this author |
+| Per-vertical products | Duplicates platform services (auth, jobs, metrics) |
 
 ## Review trigger
 

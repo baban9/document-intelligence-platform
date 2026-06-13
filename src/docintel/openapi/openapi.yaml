@@ -3,10 +3,10 @@ info:
   title: Document Intelligence Platform API
   version: 1.0.2
   description: |
-    REST API for PDF annotation, scanned-document PII detection, LLM PDF structuring,
-    resume matching, and text summarization.
+    Enterprise document intelligence API for compliance (PII detection), extraction
+    (OCR and LLM structuring), and understanding (summarization).
 
-    Long-running PDF tasks support async mode via Redis (`async=true`) and job polling
+    Long-running tasks support async mode via Redis (`async=true`) and job polling
     at `GET /v1/jobs/{job_id}`.
 
     Authenticate with `Authorization: Bearer <api_key>` when `DOCINTEL_AUTH_REQUIRED=true`.
@@ -25,7 +25,7 @@ tags:
   - name: health
   - name: pdf
   - name: jobs
-  - name: match
+  - name: batch
   - name: text
   - name: ops
 
@@ -53,7 +53,7 @@ components:
           type: string
         job_type:
           type: string
-          enum: [pdf_structure, pdf_detect_sensitive, pdf_annotate, match_resume, batch]
+          enum: [pdf_structure, pdf_detect_sensitive, pdf_annotate, text_summarize, batch]
         job_status:
           type: string
           enum: [queued, running, completed, failed]
@@ -95,26 +95,6 @@ components:
           type: string
         message:
           type: string
-
-    MatchRequest:
-      type: object
-      required: [resume, job_description]
-      properties:
-        resume:
-          type: string
-        job_description:
-          type: string
-        top_keywords:
-          type: integer
-          default: 25
-          minimum: 1
-          maximum: 100
-        callback_url:
-          type: string
-          format: uri
-        async:
-          type: boolean
-          default: false
 
     SummarizeRequest:
       type: object
@@ -380,28 +360,38 @@ paths:
         "404":
           description: Job not found
 
-  /v1/match/resume:
+  /v1/batch:
     post:
-      tags: [match]
-      summary: Score resume against job description
-      parameters:
-        - name: async
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: Queue job and return 202 when true
+      tags: [batch]
+      summary: Queue multiple async summarization jobs
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MatchRequest"
+              type: object
+              required: [items]
+              properties:
+                callback_url:
+                  type: string
+                  format: uri
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [operation, text]
+                    properties:
+                      operation:
+                        type: string
+                        enum: [summarize]
+                      text:
+                        type: string
+                      sentences:
+                        type: integer
+                        default: 3
       responses:
-        "200":
-          description: Match score and keywords
         "202":
-          description: Job queued
+          description: Batch queued
           content:
             application/json:
               schema:

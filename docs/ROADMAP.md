@@ -33,13 +33,9 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 ## Milestone 3: Resume matching
 
 **Issue title:** `M3: Add resume-to-job similarity scoring`  
-**Status:** Done
+**Status:** Removed (enterprise pivot)
 
-**Deliverables:**
-- TF-IDF matcher in `docintel/services/matching/`
-- `POST /v1/match/resume`
-- Returns score, matched keywords, missing keywords
-- Unit and route tests
+Resume matching was removed in favor of org-wide compliance, extraction, and understanding capabilities.
 
 ---
 
@@ -71,17 +67,13 @@ This document defines how the repo should grow. Each milestone maps to one GitHu
 
 ## Milestone 6: Evaluation harness
 
-**Issue title:** `M6: Offline eval suite for match and summary quality`
+**Issue title:** `M6: Offline eval suite for summary quality`  
+**Status:** Done
 
 **Deliverables:**
 - `eval/` scripts with labeled fixtures
-- JSON report for matching and summary quality
+- JSON report for summarization quality
 - Makefile target: `make eval`
-
-**Suggested commit message:**
-```
-Add offline evaluation harness with benchmark reports
-```
 
 ---
 
@@ -90,7 +82,7 @@ Add offline evaluation harness with benchmark reports
 **Issue title:** `M7: Architecture docs and production checklist`
 
 **Deliverables:**
-- ADR for matcher and summarizer choices
+- ADR for capability model and summarizer choices
 - Latency and memory notes from local benchmarks
 - Failure modes and scale limits
 - Final README polish
@@ -102,11 +94,21 @@ Document architecture tradeoffs and production readiness checklist
 
 ---
 
+## Milestone 9: Enterprise capability model
+
+**Issue title:** `M9: Reorganize codebase by compliance, extraction, understanding`
+
+**Deliverables:**
+- `capabilities/` package layout
+- Vertical preset configuration (healthcare, financial, legal)
+- OpenAPI and docs aligned to org functions
+
+---
+
 ## Legacy code sources
 
 | Feature | Legacy source |
 |---------|---------------|
 | PDF annotation | `highlight-specific-text-inside-the-PDF` (`pdfmark`) |
-| Resume matching | `Personal-Projects/Resume matching .ipynb` |
 | Summarization | `Personal-Projects/Summarizing the data - TextRank.ipynb` |
 | Flask serving | `text-generation-flask-app-deployment` |

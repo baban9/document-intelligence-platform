@@ -8,6 +8,7 @@ from docintel.auth.limiter import init_limiter
 from docintel.auth.middleware import register_auth
 from docintel.ops.logging import configure_logging
 from docintel.ops.middleware import register_request_hooks
+from docintel.routes.documents import documents_bp
 from docintel.routes.batch import batch_bp
 from docintel.routes.jobs import jobs_bp
 from docintel.routes.openapi_docs import docs_bp
@@ -36,6 +37,7 @@ def create_app(config: type[Config] = Config) -> Flask:
         )
 
     app.register_blueprint(docs_bp)
+    app.register_blueprint(documents_bp)
     app.register_blueprint(pdf_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(batch_bp)

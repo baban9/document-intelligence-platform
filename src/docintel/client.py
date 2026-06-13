@@ -164,25 +164,6 @@ class DocintelClient:
             return response.content
         return response.json()
 
-    def match_resume(
-        self,
-        resume: str,
-        job_description: str,
-        *,
-        top_keywords: int = 25,
-    ) -> dict[str, Any]:
-        response = self._session.post(
-            self._url("/v1/match/resume"),
-            json={
-                "resume": resume,
-                "job_description": job_description,
-                "top_keywords": top_keywords,
-            },
-            timeout=self.timeout,
-        )
-        self._raise_for_status(response)
-        return response.json()
-
     def summarize(self, text: str, *, sentences: int = 3) -> dict[str, Any]:
         response = self._session.post(
             self._url("/v1/text/summarize"),

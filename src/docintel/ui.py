@@ -184,35 +184,6 @@ def detect_sensitive_ui(
     return output_path, json.dumps(summary, indent=2)
 
 
-def match_resume_ui(resume: str, job_description: str, top_keywords: int) -> str:
-    if not resume.strip() or not job_description.strip():
-        return "Provide both resume and job description text."
-
-    response = requests.post(
-        f"{API_BASE}/v1/match/resume?async=true",
-        json={
-            "resume": resume,
-            "job_description": job_description,
-            "top_keywords": int(top_keywords),
-        },
-        headers=_api_headers(),
-        timeout=60,
-    )
-    if response.status_code == 202:
-        enqueue_payload = response.json()
-        poll_url = enqueue_payload.get("poll_url")
-        if not poll_url:
-            return "Async job started but poll_url is missing."
-        payload, error = _poll_job_until_complete(poll_url, timeout_seconds=120)
-        if error:
-            return error
-        result = payload.get("result") or payload
-        return json.dumps({"status": "ok", **result}, indent=2)
-    if not response.ok:
-        return _api_error(response)
-    return json.dumps(response.json(), indent=2)
-
-
 def structure_pdf_ui(pdf_file: Any, mode: str, force_ocr: bool) -> tuple[Any, str]:
     path = resolve_upload_path(pdf_file)
     if path is None:
@@ -285,7 +256,7 @@ def build_ui():
     with gr.Blocks(title="Document Intelligence Platform") as demo:
         gr.Markdown(
             "# Document Intelligence Platform\n"
-            "Upload documents, detect sensitive data, match resumes, and summarize text. "
+            "Upload documents, detect sensitive data, structure PDFs, and summarize text. "
             f"Backend API: `{API_BASE}`"
         )
         gr.Markdown(check_api_health())
@@ -360,14 +331,6 @@ def build_ui():
                 inputs=[structure_file, structure_mode, structure_force_ocr],
                 outputs=[structure_output, structure_report],
             )
-
-        with gr.Tab("Resume matching"):
-            resume_text = gr.Textbox(label="Resume", lines=8)
-            job_text = gr.Textbox(label="Job description", lines=8)
-            top_kw = gr.Slider(5, 50, value=15, step=1, label="Top keywords")
-            match_btn = gr.Button("Score match")
-            match_output = gr.Textbox(label="Match result", lines=12)
-            match_btn.click(match_resume_ui, inputs=[resume_text, job_text, top_kw], outputs=match_output)
 
         with gr.Tab("Text summarization"):
             source_text = gr.Textbox(label="Source text", lines=10)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline evaluation for matching and summarization quality."""
+"""Offline evaluation for summarization quality."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from docintel.services.matching import match_resume_to_job
 from docintel.services.summary import summarize_text
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -20,37 +19,6 @@ REPORTS = Path(__file__).resolve().parent / "reports"
 
 def _load(name: str) -> list[dict]:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
-
-
-def eval_matching() -> dict:
-    cases = _load("match_cases.json")
-    results = []
-    passed = 0
-    for case in cases:
-        outcome = match_resume_to_job(
-            resume=case["resume"],
-            job_description=case["job_description"],
-            top_keywords=10,
-        )
-        score = outcome.score
-        ok = score >= case.get("min_score", 0.0)
-        if "max_score" in case:
-            ok = ok and score <= case["max_score"]
-        passed += int(ok)
-        results.append(
-            {
-                "name": case["name"],
-                "score": score,
-                "passed": ok,
-                "matched_keywords": outcome.matched_keywords[:5],
-            }
-        )
-    return {
-        "suite": "matching",
-        "passed": passed,
-        "total": len(cases),
-        "cases": results,
-    }
 
 
 def eval_summaries() -> dict:
@@ -79,12 +47,13 @@ def eval_summaries() -> dict:
 
 
 def main() -> int:
+    suite = eval_summaries()
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "suites": [eval_matching(), eval_summaries()],
+        "suites": [suite],
+        "passed": suite["passed"],
+        "total": suite["total"],
     }
-    report["passed"] = sum(suite["passed"] for suite in report["suites"])
-    report["total"] = sum(suite["total"] for suite in report["suites"])
 
     REPORTS.mkdir(parents=True, exist_ok=True)
     out_path = REPORTS / "eval_report.json"

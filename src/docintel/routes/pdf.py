@@ -15,7 +15,9 @@ from docintel.services.pdf import (
     StructureMode,
     annotate_pdf,
     detect_sensitive_pdf,
+    entities_for_vertical,
     list_supported_entities,
+    list_vertical_presets,
     structure_pdf,
 )
 
@@ -131,6 +133,12 @@ def _parse_entities(raw_entities: str | None) -> list[str] | None:
     return [item.strip() for item in raw_entities.split(",") if item.strip()]
 
 
+def _resolve_entities(raw_entities: str | None, vertical: str | None) -> list[str] | None:
+    if vertical and vertical.strip():
+        return list(entities_for_vertical(vertical))
+    return _parse_entities(raw_entities)
+
+
 @pdf_bp.get("/entities")
 @limiter.limit("120 per hour")
 def supported_entities():
@@ -145,6 +153,19 @@ def supported_entities():
             "status": "ok",
             "default_entities": list(DEFAULT_PII_ENTITIES),
             "supported_entities": entities,
+            "vertical_presets": list(list_vertical_presets()),
+        }
+    )
+
+
+@pdf_bp.get("/presets")
+@limiter.limit("120 per hour")
+def vertical_presets():
+    """List vertical entity packs for sensitive detection."""
+    return jsonify(
+        {
+            "status": "ok",
+            "presets": list_vertical_presets(),
         }
     )
 
@@ -175,6 +196,12 @@ def detect_sensitive():
         return jsonify({"error": "Action 'Remove' is not supported for sensitive detection."}), 400
 
     entities = _parse_entities(request.form.get("entities"))
+    vertical = request.form.get("vertical", "").strip() or None
+    try:
+        entities = _resolve_entities(request.form.get("entities"), vertical)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     pattern = request.form.get("pattern", "").strip() or None
     force_ocr = request.form.get("force_ocr", "false").lower() == "true"
     add_text_layer = request.form.get("add_text_layer", "true").lower() == "true"

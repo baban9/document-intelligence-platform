@@ -79,7 +79,8 @@ Resume matching was removed in favor of org-wide compliance, extraction, and und
 
 ## Milestone 7: Production readiness docs
 
-**Issue title:** `M7: Architecture docs and production checklist`
+**Issue title:** `M7: Architecture docs and production checklist`  
+**Status:** Done
 
 **Deliverables:**
 - ADR for capability model and summarizer choices

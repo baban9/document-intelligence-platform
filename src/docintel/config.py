@@ -18,3 +18,9 @@ class Config:
     OIDC_ISSUER = os.getenv("DOCINTEL_OIDC_ISSUER", "")
     OIDC_AUDIENCE = os.getenv("DOCINTEL_OIDC_AUDIENCE", "")
     OIDC_JWKS_URL = os.getenv("DOCINTEL_OIDC_JWKS_URL", "")
+    WEBHOOK_SECRET = os.getenv("DOCINTEL_WEBHOOK_SECRET", "")
+    STORAGE_BACKEND = os.getenv("DOCINTEL_STORAGE_BACKEND", "local")
+    S3_BUCKET = os.getenv("DOCINTEL_S3_BUCKET", "")
+    S3_REGION = os.getenv("DOCINTEL_S3_REGION", "us-east-1")
+    S3_ENDPOINT_URL = os.getenv("DOCINTEL_S3_ENDPOINT_URL", "")
+    PROMETHEUS_ENABLED = os.getenv("DOCINTEL_PROMETHEUS_ENABLED", "true").lower() == "true"

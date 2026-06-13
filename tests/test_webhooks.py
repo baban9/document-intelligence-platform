@@ -33,6 +33,7 @@ def test_deliver_job_webhook_posts_payload(monkeypatch):
     mock_response.ok = True
     mock_post.return_value = mock_response
     monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setenv("DOCINTEL_WEBHOOK_SECRET", "")
 
     ok = deliver_job_webhook(
         "https://example.com/hook",
@@ -40,6 +41,23 @@ def test_deliver_job_webhook_posts_payload(monkeypatch):
     )
     assert ok is True
     mock_post.assert_called_once()
+
+
+def test_deliver_job_webhook_adds_hmac_signature(monkeypatch):
+    mock_post = MagicMock()
+    mock_response = MagicMock()
+    mock_response.ok = True
+    mock_post.return_value = mock_response
+    monkeypatch.setattr("requests.post", mock_post)
+    monkeypatch.setenv("DOCINTEL_WEBHOOK_SECRET", "test-secret")
+
+    payload = {"job_id": "abc", "job_status": "completed"}
+    ok = deliver_job_webhook("https://example.com/hook", payload)
+    assert ok is True
+    _, kwargs = mock_post.call_args
+    headers = kwargs["headers"]
+    assert "X-Docintel-Signature" in headers
+    assert headers["X-Docintel-Signature"].startswith("sha256=")
 
 
 def test_run_structure_job_updates_progress(

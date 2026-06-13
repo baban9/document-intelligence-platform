@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen.svg)](tests/)
 
-Production-ready document AI: PDF annotation, scanned-document PII detection (EasyOCR + Presidio), LLM PDF structuring, resume matching, and extractive summarization. Ship as a REST API, a Gradio upload GUI, or both via Docker.
+Production document intelligence for compliance, extraction, and understanding across scanned and digital PDFs. One platform for Legal, Finance, Operations, Security, and Knowledge teams. Ship as a REST API, Gradio GUI, or Docker deployment.
 
 **Version:** 1.0.2
 
@@ -29,7 +29,7 @@ PyPI: https://pypi.org/project/docintel-platform/
 from docintel import DocintelClient
 
 client = DocintelClient("http://127.0.0.1:5000", api_key="your-key")
-result = client.match_resume(resume_text, job_description)
+summary = client.summarize(long_report_text, sentences=3)
 pdf_bytes = client.structure_pdf("scan.pdf", async_job=True)
 ```
 
@@ -76,8 +76,7 @@ Open http://127.0.0.1:7860 after `make docker-up` (or `make run-ui` locally).
 | **PDF regex annotate** | Search by pattern, highlight or redact |
 | **Sensitive PDF (OCR + Presidio)** | Scanned docs: OCR, detect PII, annotate boxes |
 | **PDF structure (LLM)** | Scanned or messy PDFs to curated structured PDF |
-| **Resume matching** | Score resume vs job description |
-| **Text summarization** | Extractive summary with TextRank |
+| **Text summarization** | Extractive summary for reports and policies |
 
 The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if the API runs on a different host.
 
@@ -91,33 +90,33 @@ The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if t
 | Scanned PDF PII detection | `POST /v1/pdf/detect-sensitive` | Sensitive PDF tab |
 | LLM PDF structuring | `POST /v1/pdf/structure` | PDF structure tab |
 | Presidio entity catalog | `GET /v1/pdf/entities` | - |
-| Resume vs job matching | `POST /v1/match/resume` | Resume matching tab |
 | Extractive summarization | `POST /v1/text/summarize` | Text summarization tab |
+| Batch async jobs | `POST /v1/batch` | - |
 | Health and metrics | `GET /health`, `GET /metrics` | - |
 
 ---
 
 ## Why this exists
 
-HR, compliance, and research teams often maintain separate tools:
+Enterprise teams run document workflows across Legal, Finance, Operations, and Security. Most still rely on separate scripts for redaction, OCR, structure extraction, and summarization. That split means duplicated config, no shared metrics, and broken pipelines on **scanned PDFs** where native text is empty.
 
-- a PDF highlighter or redaction script
-- a resume keyword matcher
-- a notebook for summarization
+This platform unifies compliance, extraction, and understanding behind one API, one job queue, and one deployment model.
 
-That split means duplicated config, no shared metrics, and broken workflows on **scanned PDFs** where text extraction returns empty. This platform unifies those flows behind one API and one upload GUI.
+---
+
+## Organizational capabilities
+
+| Function | Primary capabilities |
+|----------|---------------------|
+| Legal / Compliance | PII detection, redaction, audit via jobs and webhooks |
+| Finance | Invoice and contract structuring, sensitive field masking |
+| Operations | Bulk PDF processing, async jobs, S3 artifacts |
+| Security / GRC | Presidio entities, `redact_before_llm`, OIDC auth |
+| Knowledge / R&D | Long-document summarization, structured extraction |
 
 ---
 
 ## Problems it solves
-
-### HR and recruiting
-
-| Problem | Solution |
-|---------|----------|
-| Manual resume screening at scale | TF-IDF match score plus keyword overlap |
-| Long ATS exports before phone screens | Extractive summary in seconds |
-| Inconsistent reviewer shortlists | Same scoring logic every time |
 
 ### Compliance and legal
 
@@ -128,21 +127,22 @@ That split means duplicated config, no shared metrics, and broken workflows on *
 | Redact SSN, email, phone before external share | Highlight or redact on exact bounding boxes |
 | Audit trail | Structured JSON logs and `/metrics` |
 
-### Research intake
+### Operations and knowledge
 
 | Problem | Solution |
 |---------|----------|
 | Long reports need triage | TextRank summarization |
+| Messy scanned intake | LLM PDF structuring with OCR |
 | Key terms buried in PDFs | Regex annotate or Presidio entity detection |
 
 ### Before vs after
 
 | Before | After |
 |--------|-------|
-| 3 scripts, 3 configs | 1 API + 1 GUI + 1 Docker deploy |
+| Siloed scripts per team | One API + shared platform services |
 | Scanned PDFs fail regex tools | OCR fallback with Presidio PII boxes |
 | Desktop-only redaction | Programmatic HTTP + downloadable output PDF |
-| No observability | JSON logs, health check, metrics endpoint |
+| No observability | JSON logs, Prometheus metrics, health checks |
 
 ---
 
@@ -191,7 +191,7 @@ python -m spacy download en_core_web_sm
 
 ## Architecture
 
-Modular monolith: one Flask app, separate service modules, optional Gradio front end.
+Modular monolith organized by enterprise capabilities: Compliance, Extraction, Understanding, plus shared Platform services.
 
 ```
   Browser / curl                    Docker Compose
@@ -205,13 +205,12 @@ Modular monolith: one Flask app, separate service modules, optional Gradio front
             +-----------------------------+-----------------------------+
             |                             |                             |
       +-----v-----+               +-----v-----+               +-----v-----+
-      |    PDF    |               |  Matching |               |  Summary  |
-      |  service  |               |  service  |               |  service  |
+      | Compliance|               | Extraction|               |Understand.|
+      | PII/OCR   |               | LLM struct|               | Summarize |
       +-----------+               +-----------+               +-----------+
             |                             |                             |
-      PyMuPDF regex               TF-IDF cosine                 TextRank graph
-      EasyOCR (scanned)           keyword overlap               extractive output
-      Presidio PII boxes          LLM PDF structure
+      Presidio + EasyOCR          OCR + LLM curate              TextRank graph
+      Regex annotate              Searchable PDF layer          extractive output
 ```
 
 Decision records: [modular monolith](docs/adr/001-modular-monolith.md), [OCR + Presidio](docs/adr/002-ocr-presidio-pipeline.md)
@@ -372,31 +371,6 @@ curl -X POST "http://127.0.0.1:5000/v1/pdf/annotate?async=true" \
 
 ---
 
-### Resume matching
-
-```bash
-curl -X POST http://127.0.0.1:5000/v1/match/resume \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resume": "Python engineer with Flask, pytest, Docker, and NLP experience.",
-    "job_description": "Seeking Python developer with Flask, Docker, API, and NLP skills.",
-    "top_keywords": 10
-  }'
-```
-
-Async mode: add `?async=true` or `"async": true` in the JSON body, then poll `GET /v1/jobs/<job_id>`.
-
-```json
-{
-  "status": "ok",
-  "score": 42.15,
-  "matched_keywords": ["python", "flask", "docker", "nlp"],
-  "missing_keywords": ["developer", "api", "skills"]
-}
-```
-
----
-
 ### Text summarization
 
 ```bash
@@ -475,10 +449,9 @@ document-intelligence-platform/
     ui.py                  Gradio upload GUI
     wsgi.py                Gunicorn entry
     routes/                HTTP endpoints
-    services/
-      pdf/                 PyMuPDF, EasyOCR, Presidio
-      matching/            TF-IDF resume scoring
-      summary/             TextRank summarizer
+    capabilities/          Compliance, extraction, understanding (see docs)
+    services/              Legacy module paths (re-exports during migration)
+    platform/              Jobs, auth, storage, ops (shared services)
     ops/                   JSON logging, metrics
   run.py                   Start API locally
   run_ui.py                Start Gradio locally
@@ -505,6 +478,7 @@ document-intelligence-platform/
 | `make run` | Start API (:5000) |
 | `make run-ui` | Start Gradio (:7860) |
 | `make test` | Run pytest |
+| `make eval` | Offline summarization quality report |
 | `make docker-up` | Build and start API + UI containers |
 | `make docker-down` | Stop containers |
 | `make docker-logs` | Tail all service logs |
@@ -517,14 +491,14 @@ document-intelligence-platform/
 |-----------|-------|--------|
 | M1 | Project scaffold, health endpoint | Done |
 | M2 | PDF regex annotation | Done |
-| M3 | Resume matching | Done |
 | M4 | Extractive summarization | Done |
 | M5 | Docker, logging, metrics | Done |
 | M5+ | OCR + Presidio scanned PDF pipeline | Done |
 | M5+ | Gradio upload GUI | Done |
 | M8 | LLM PDF structuring | Done |
-| M6 | Offline eval harness | Planned |
+| M6 | Offline eval harness | Done |
 | M7 | Production checklist | Planned |
+| M9 | Enterprise capability model | In progress |
 
 Details: [docs/ROADMAP.md](docs/ROADMAP.md)
 

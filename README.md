@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen.svg)](tests/)
 
-Production document intelligence for compliance, extraction, and understanding across scanned and digital PDFs. One platform for Legal, Finance, Operations, Security, and Knowledge teams. Ship as a REST API, Gradio GUI, or Docker deployment.
+Production document intelligence for compliance, extraction, and understanding across PDFs, Word, Excel, CSV, and plain text. One platform for Legal, Finance, Operations, Security, and Knowledge teams. Ship as a REST API, Gradio GUI, or Docker deployment.
 
 **Version:** 1.0.2
 
@@ -17,8 +17,11 @@ Production document intelligence for compliance, extraction, and understanding a
 ```bash
 pip install docintel-platform
 
-# Full stack (OCR, LLM, jobs, auth, UI)
+# Full stack (OCR, LLM, jobs, auth, UI, office formats)
 pip install "docintel-platform[all]"
+
+# Word and Excel text extraction
+pip install "docintel-platform[documents]"
 ```
 
 PyPI: https://pypi.org/project/docintel-platform/
@@ -77,6 +80,7 @@ Open http://127.0.0.1:7860 after `make docker-up` (or `make run-ui` locally).
 | **Sensitive PDF (OCR + Presidio)** | Scanned docs: OCR, detect PII, annotate boxes |
 | **PDF structure (LLM)** | Scanned or messy PDFs to curated structured PDF |
 | **Text summarization** | Extractive summary for reports and policies |
+| **Document tools** | Identify, extract text, classify, summarize, PII scan, compare |
 
 The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if the API runs on a different host.
 
@@ -90,9 +94,16 @@ The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if t
 | Scanned PDF PII detection | `POST /v1/pdf/detect-sensitive` | Sensitive PDF tab |
 | LLM PDF structuring | `POST /v1/pdf/structure` | PDF structure tab |
 | Presidio entity catalog | `GET /v1/pdf/entities` | - |
+| Vertical entity presets | `GET /v1/pdf/presets` | - |
+| Multi-format identify | `POST /v1/documents/identify` | Document tools tab |
+| Multi-format text extract | `POST /v1/documents/extract-text` | Document tools tab |
+| Document classification | `POST /v1/documents/classify` | Document tools tab |
+| Document comparison | `POST /v1/documents/compare` | Document tools tab |
 | Extractive summarization | `POST /v1/text/summarize` | Text summarization tab |
 | Batch async jobs | `POST /v1/batch` | - |
 | Health and metrics | `GET /health`, `GET /metrics` | - |
+
+Supported upload formats for text workflows: **PDF**, **DOCX**, **XLSX**, **CSV**, **JSON**, **TXT/MD**. PDF-only pipelines (annotate, sensitive scan, structure) reject other types with HTTP 415 and the detected kind.
 
 ---
 
@@ -381,6 +392,57 @@ curl -X POST http://127.0.0.1:5000/v1/text/summarize \
 
 ---
 
+### Multi-format documents
+
+Identify kind, extract text, classify, and compare across PDF, Word, Excel, CSV, JSON, and plain text. Office formats require `pip install -e ".[documents]"`.
+
+List supported types:
+
+```bash
+curl http://127.0.0.1:5000/v1/documents/types
+```
+
+Identify an upload:
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/identify \
+  -F "file=@budget.xlsx"
+```
+
+Extract text:
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/extract-text \
+  -F "file=@policy.docx"
+```
+
+Classify by file or JSON text:
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/classify \
+  -F "file=@contract.docx"
+
+curl -X POST http://127.0.0.1:5000/v1/documents/classify \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Master service agreement between the parties..."}'
+```
+
+Compare two texts:
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/compare \
+  -H "Content-Type: application/json" \
+  -d '{"text_a": "Refund policy ...", "text_b": "Return policy ..."}'
+```
+
+Vertical Presidio presets for PDF sensitive scan:
+
+```bash
+curl http://127.0.0.1:5000/v1/pdf/presets
+```
+
+---
+
 ### Metrics
 
 ```bash
@@ -497,8 +559,8 @@ document-intelligence-platform/
 | M5+ | Gradio upload GUI | Done |
 | M8 | LLM PDF structuring | Done |
 | M6 | Offline eval harness | Done |
-| M7 | Production checklist | Planned |
-| M9 | Enterprise capability model | In progress |
+| M7 | Production checklist | Done |
+| M9 | Enterprise capability model | Done |
 
 Details: [docs/ROADMAP.md](docs/ROADMAP.md)
 

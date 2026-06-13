@@ -24,6 +24,7 @@ servers:
 tags:
   - name: health
   - name: pdf
+  - name: documents
   - name: jobs
   - name: batch
   - name: text
@@ -107,6 +108,58 @@ components:
           default: 3
           minimum: 1
           maximum: 20
+
+    DocumentType:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [pdf, docx, xlsx, csv, plain_text, json]
+        mime_type:
+          type: string
+        extensions:
+          type: array
+          items:
+            type: string
+        label:
+          type: string
+        capabilities:
+          type: object
+          properties:
+            pdf_pipeline:
+              type: boolean
+            text_extraction:
+              type: boolean
+
+    ClassifyRequest:
+      type: object
+      properties:
+        text:
+          type: string
+
+    CompareRequest:
+      type: object
+      required: [text_a, text_b]
+      properties:
+        text_a:
+          type: string
+        text_b:
+          type: string
+
+    DetectPiiRequest:
+      type: object
+      properties:
+        text:
+          type: string
+        entities:
+          type: string
+          description: Comma-separated Presidio entity types
+        vertical:
+          type: string
+          enum: [general, healthcare, financial, legal]
+        min_score:
+          type: number
+          default: 0.35
 
 security:
   - bearerAuth: []
@@ -210,6 +263,14 @@ paths:
       responses:
         "200":
           description: Supported entities
+
+  /v1/pdf/presets:
+    get:
+      tags: [pdf]
+      summary: List vertical Presidio entity packs
+      responses:
+        "200":
+          description: Vertical preset map
 
   /v1/pdf/detect-sensitive:
     post:
@@ -339,6 +400,105 @@ paths:
                 format: binary
         "404":
           description: File not found
+
+  /v1/documents/types:
+    get:
+      tags: [documents]
+      summary: List supported document formats and capabilities
+      responses:
+        "200":
+          description: Supported MIME types and extensions
+
+  /v1/documents/identify:
+    post:
+      tags: [documents]
+      summary: Detect document kind from an upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Detected document profile
+        "400":
+          description: Missing upload
+
+  /v1/documents/extract-text:
+    post:
+      tags: [documents]
+      summary: Extract plain text from PDF, Word, Excel, CSV, JSON, or text files
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Extracted text and segments
+        "415":
+          description: Unsupported document kind
+
+  /v1/documents/classify:
+    post:
+      tags: [documents]
+      summary: Classify text or an uploaded document
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassifyRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                text:
+                  type: string
+      responses:
+        "200":
+          description: Category scores
+
+  /v1/documents/compare:
+    post:
+      tags: [documents]
+      summary: Compare two documents or text bodies for overlap
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompareRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file_a:
+                  type: string
+                  format: binary
+                file_b:
+                  type: string
+                  format: binary
+                text_a:
+                  type: string
+                text_b:
+                  type: string
+      responses:
+        "200":
+          description: Similarity and shared terms
 
   /v1/jobs/{job_id}:
     get:

@@ -96,12 +96,14 @@ Document architecture tradeoffs and production readiness checklist
 
 ## Milestone 9: Enterprise capability model
 
-**Issue title:** `M9: Reorganize codebase by compliance, extraction, understanding`
+**Issue title:** `M9: Reorganize codebase by compliance, extraction, understanding`  
+**Status:** Done (layout and shims; vertical presets in M7 follow-up)
 
 **Deliverables:**
-- `capabilities/` package layout
-- Vertical preset configuration (healthcare, financial, legal)
+- `capabilities/` package layout (see ADR 003)
+- Compatibility shims under `services/pdf` and `services/summary`
 - OpenAPI and docs aligned to org functions
+- Vertical preset configuration tracked under M7
 
 ---
 

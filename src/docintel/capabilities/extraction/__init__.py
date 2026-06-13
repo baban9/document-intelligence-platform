@@ -1,8 +1,7 @@
-"""OCR extraction (compatibility shim)."""
+"""Document extraction capabilities (OCR, LLM structuring)."""
 
 from docintel.capabilities.extraction.ocr import (
     OCRSpan,
-    IndexedSpan,
     build_indexed_text,
     embed_invisible_text_layer,
     extract_page_ocr,
@@ -10,10 +9,17 @@ from docintel.capabilities.extraction.ocr import (
     page_has_native_text,
     rects_for_char_range,
 )
+from docintel.capabilities.extraction.structure_schema import (
+    SectionBlock,
+    StructuredDocument,
+    StructuredPage,
+)
 
 __all__ = [
-    "IndexedSpan",
     "OCRSpan",
+    "SectionBlock",
+    "StructuredDocument",
+    "StructuredPage",
     "build_indexed_text",
     "embed_invisible_text_layer",
     "extract_page_ocr",

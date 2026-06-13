@@ -9,6 +9,8 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
 from docintel.auth.limiter import limiter
+from docintel.capabilities.extraction.formats import identify_document
+from docintel.routes.document_upload import is_pdf_upload, pdf_required_message, read_upload
 from docintel.services.pdf import (
     Action,
     DEFAULT_PII_ENTITIES,
@@ -40,18 +42,33 @@ def _parse_pages(raw_pages: str | None) -> list[int] | None:
     return [int(page.strip()) for page in raw_pages.split(",") if page.strip()]
 
 
+def _prepare_pdf_upload(work_dir: Path):
+    """Save upload and verify it is a PDF. Returns (saved_path, filename) or (None, error_response)."""
+    upload = read_upload(request, "file")
+    if upload is None:
+        return None, (jsonify({"error": "Missing PDF file in form field 'file'."}), 400)
+
+    filename = secure_filename(upload.filename)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    input_path = work_dir / filename
+    upload.save(input_path)
+
+    identification = identify_document(
+        input_path,
+        filename=filename,
+        content_type=upload.content_type,
+    )
+    if not is_pdf_upload(identification):
+        input_path.unlink(missing_ok=True)
+        return None, (jsonify(pdf_required_message(identification)), 415)
+
+    return (input_path, filename), None
+
+
 @pdf_bp.post("/annotate")
 @limiter.limit("60 per hour")
 def annotate():
     """Search a PDF and apply highlight, redact, or other annotation actions."""
-    upload = request.files.get("file")
-    if upload is None or not upload.filename:
-        return jsonify({"error": "Missing PDF file in form field 'file'."}), 400
-
-    filename = secure_filename(upload.filename)
-    if not filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Only PDF files are supported."}), 400
-
     action_raw = request.form.get("action", Action.HIGHLIGHT.value)
     try:
         action = Action.from_value(action_raw)
@@ -69,10 +86,12 @@ def annotate():
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _job_dir(job_id)
-
-    input_path = work_dir / filename
+    prepared, upload_error = _prepare_pdf_upload(work_dir)
+    if upload_error is not None:
+        response, status = upload_error
+        return response, status
+    input_path, filename = prepared
     output_path = work_dir / f"annotated_{filename}"
-    upload.save(input_path)
 
     callback_url = request.form.get("callback_url", "").strip() or None
     run_async = _parse_async_flag()
@@ -178,14 +197,6 @@ def detect_sensitive():
 
     Auto-falls back to EasyOCR when native PDF text is empty (scanned documents).
     """
-    upload = request.files.get("file")
-    if upload is None or not upload.filename:
-        return jsonify({"error": "Missing PDF file in form field 'file'."}), 400
-
-    filename = secure_filename(upload.filename)
-    if not filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Only PDF files are supported."}), 400
-
     action_raw = request.form.get("action", Action.HIGHLIGHT.value)
     try:
         action = Action.from_value(action_raw)
@@ -216,10 +227,12 @@ def detect_sensitive():
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _job_dir(job_id)
-
-    input_path = work_dir / filename
+    prepared, upload_error = _prepare_pdf_upload(work_dir)
+    if upload_error is not None:
+        response, status = upload_error
+        return response, status
+    input_path, filename = prepared
     output_path = work_dir / f"sensitive_{filename}"
-    upload.save(input_path)
 
     if run_async:
         return _enqueue_detect_sensitive_job(
@@ -296,14 +309,6 @@ def structure():
 
     Use ``async=true`` to queue the job and poll ``GET /v1/jobs/<job_id>``.
     """
-    upload = request.files.get("file")
-    if upload is None or not upload.filename:
-        return jsonify({"error": "Missing PDF file in form field 'file'."}), 400
-
-    filename = secure_filename(upload.filename)
-    if not filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Only PDF files are supported."}), 400
-
     mode_raw = request.form.get("mode", StructureMode.CURATE.value)
     try:
         mode = StructureMode.from_value(mode_raw)
@@ -317,10 +322,12 @@ def structure():
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _job_dir(job_id)
-
-    input_path = work_dir / filename
+    prepared, upload_error = _prepare_pdf_upload(work_dir)
+    if upload_error is not None:
+        response, status = upload_error
+        return response, status
+    input_path, filename = prepared
     output_path = work_dir / f"structured_{filename}"
-    upload.save(input_path)
 
     if run_async:
         return _enqueue_structure_job(

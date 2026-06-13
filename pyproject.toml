@@ -48,6 +48,12 @@ dev = [
     "twine>=5.1.1",
     "fakeredis>=2.26.2",
     "prometheus-client>=0.21.0",
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
+]
+documents = [
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
 ]
 ocr = [
     "easyocr>=1.7.2",
@@ -90,6 +96,8 @@ all = [
     "PyJWT>=2.9.0",
     "cryptography>=43.0.0",
     "gradio>=4.44.0",
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
 ]
 
 [project.scripts]

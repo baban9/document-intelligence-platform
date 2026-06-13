@@ -2,26 +2,112 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from flask import Blueprint, jsonify, request
 
 from docintel.auth.limiter import limiter
+from docintel.capabilities.extraction.formats import (
+    extract_document_text,
+    list_supported_types,
+)
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.capabilities.understanding.compare import compare_texts
+from docintel.routes.document_upload import read_upload, save_upload
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/v1/documents")
+
+
+def _text_from_request(field_name: str = "text") -> str | None:
+    payload = request.get_json(silent=True) or {}
+    if field_name in payload and isinstance(payload[field_name], str):
+        return payload[field_name]
+    form_value = request.form.get(field_name)
+    if isinstance(form_value, str) and form_value.strip():
+        return form_value
+    return None
+
+
+def _resolve_text_from_upload_or_body(field_name: str = "text") -> tuple[str | None, dict | None, int | None]:
+    upload = read_upload(request, "file")
+    if upload is not None:
+        with tempfile.TemporaryDirectory(prefix="docintel-identify-") as temp_dir:
+            saved = save_upload(upload, Path(temp_dir))
+            try:
+                extraction = extract_document_text(
+                    saved.path,
+                    filename=saved.filename,
+                    content_type=saved.content_type,
+                    identification=saved.identification,
+                )
+            except ValueError as exc:
+                return None, {"error": str(exc)}, 400
+            except RuntimeError as exc:
+                return None, {"error": str(exc)}, 503
+            return extraction.text, None, None
+
+    text = _text_from_request(field_name)
+    if text is None:
+        return None, {"error": f"Provide JSON/form field '{field_name}' or upload a file."}, 400
+    return text, None, None
+
+
+@documents_bp.get("/types")
+@limiter.limit("120 per hour")
+def supported_document_types():
+    """List supported MIME types, extensions, and capabilities."""
+    return jsonify({"status": "ok", "types": list_supported_types()})
+
+
+@documents_bp.post("/identify")
+@limiter.limit("120 per hour")
+def identify_upload():
+    """Detect document kind from an uploaded file."""
+    upload = read_upload(request, "file")
+    if upload is None:
+        return jsonify({"error": "Missing file in form field 'file'."}), 400
+
+    with tempfile.TemporaryDirectory(prefix="docintel-identify-") as temp_dir:
+        saved = save_upload(upload, Path(temp_dir))
+        return jsonify({"status": "ok", **saved.identification.to_dict()})
+
+
+@documents_bp.post("/extract-text")
+@limiter.limit("60 per hour")
+def extract_text_upload():
+    """Extract plain text from PDF, Word, Excel, CSV, JSON, or plain text uploads."""
+    upload = read_upload(request, "file")
+    if upload is None:
+        return jsonify({"error": "Missing file in form field 'file'."}), 400
+
+    with tempfile.TemporaryDirectory(prefix="docintel-extract-") as temp_dir:
+        saved = save_upload(upload, Path(temp_dir))
+        try:
+            result = extract_document_text(
+                saved.path,
+                filename=saved.filename,
+                content_type=saved.content_type,
+                identification=saved.identification,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "detected": saved.identification.to_dict()}), 415
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
+
+        return jsonify({"status": "ok", "filename": saved.filename, **result.to_dict()})
 
 
 @documents_bp.post("/classify")
 @limiter.limit("120 per hour")
 def classify_document():
-    """Classify free text into enterprise function categories."""
-    payload = request.get_json(silent=True) or {}
-    text = payload.get("text", "")
-    if not isinstance(text, str):
-        return jsonify({"error": "Field 'text' must be a string."}), 400
+    """Classify text or an uploaded document into enterprise function categories."""
+    text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
+    if error_payload is not None:
+        return jsonify(error_payload), status_code
 
     try:
-        result = classify_text(text)
+        result = classify_text(text or "")
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

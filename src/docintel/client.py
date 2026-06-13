@@ -172,3 +172,30 @@ class DocintelClient:
         )
         self._raise_for_status(response)
         return response.json()
+
+    def list_document_types(self) -> dict[str, Any]:
+        response = self._session.get(self._url("/v1/documents/types"), timeout=self.timeout)
+        self._raise_for_status(response)
+        return response.json()
+
+    def identify_document(self, path: str | Path) -> dict[str, Any]:
+        file_path = Path(path)
+        with file_path.open("rb") as handle:
+            response = self._session.post(
+                self._url("/v1/documents/identify"),
+                files={"file": (file_path.name, handle, "application/octet-stream")},
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()
+
+    def extract_document_text(self, path: str | Path) -> dict[str, Any]:
+        file_path = Path(path)
+        with file_path.open("rb") as handle:
+            response = self._session.post(
+                self._url("/v1/documents/extract-text"),
+                files={"file": (file_path.name, handle, "application/octet-stream")},
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()

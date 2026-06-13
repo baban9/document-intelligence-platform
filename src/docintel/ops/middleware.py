@@ -27,6 +27,10 @@ def register_request_hooks(app: Flask) -> None:
 
     metrics_store.record(endpoint, response.status_code, duration_ms)
 
+    from docintel.ops.prometheus import record_prometheus
+
+    record_prometheus(endpoint, response.status_code, duration_ms / 1000.0)
+
     logger.info(
       "request completed",
       extra={

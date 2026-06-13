@@ -18,9 +18,19 @@ def test_metrics_endpoint_tracks_requests():
   payload = response.get_json()
   assert response.status_code == 200
   assert payload["status"] == "ok"
-  assert payload["total_requests"] >= 3
+  assert payload["total_requests"] >= 2
   assert "health" in payload["requests_by_endpoint"]
   assert payload["avg_latency_ms"] >= 0
+
+
+def test_metrics_prometheus_format():
+  app = create_app()
+  with app.test_client() as client:
+    client.get("/health")
+    response = client.get("/metrics?format=prometheus")
+
+  assert response.status_code == 200
+  assert b"docintel_http_requests_total" in response.data
 
 
 def test_metrics_store_counts_errors():

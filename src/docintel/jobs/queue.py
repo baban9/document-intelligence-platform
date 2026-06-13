@@ -117,3 +117,28 @@ def enqueue_match_job(
         result_ttl=DEFAULT_RESULT_TTL,
         failure_ttl=DEFAULT_FAILURE_TTL,
     )
+
+
+def enqueue_summarize_job(
+    job_id: str,
+    text: str,
+    sentences: int,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_summarize_job",
+        job_id=job_id,
+        text=text,
+        sentences=sentences,
+        job_timeout=300,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def queue_depth() -> int | None:
+    """Return RQ queue length when Redis is reachable."""
+    try:
+        return get_queue().count
+    except Exception:
+        return None

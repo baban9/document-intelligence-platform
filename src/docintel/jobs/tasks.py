@@ -11,6 +11,7 @@ from docintel.services.pdf.annotator import annotate_pdf
 from docintel.services.pdf.sensitive import detect_sensitive_pdf
 from docintel.services.pdf.structure import structure_pdf
 from docintel.services.matching import match_resume_to_job
+from docintel.services.summary import summarize_text
 
 
 def _job_progress_callback(job_id: str):
@@ -244,6 +245,48 @@ def run_match_resume_job(
             job_description=job_description,
             top_keywords=top_keywords,
         )
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    result_payload = result.to_dict()
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def run_summarize_job(
+    *,
+    job_id: str,
+    text: str,
+    sentences: int,
+) -> dict:
+    """Worker entrypoint: extractive summarization."""
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=10,
+        progress_message="Summarizing text",
+    )
+
+    try:
+        result = summarize_text(text, sentence_count=sentences)
     except Exception as exc:
         failed = update_job(
             job_id,

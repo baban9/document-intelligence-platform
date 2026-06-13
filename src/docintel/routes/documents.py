@@ -14,6 +14,8 @@ from docintel.capabilities.extraction.formats import (
 )
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.capabilities.understanding.compare import compare_texts
+from docintel.services.pdf import entities_for_vertical
+from docintel.services.pdf.pii import detect_pii_in_text
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
 from docintel.routes.document_upload import read_upload, save_upload
@@ -67,6 +69,27 @@ def _parse_sentence_count() -> tuple[int | None, dict | None, int | None]:
             "error": f"Field 'sentences' must be between 1 and {MAX_SENTENCE_COUNT}."
         }, 400
     return sentences, None, None
+
+
+def _parse_entities(raw_entities: str | None) -> list[str] | None:
+    if not raw_entities or not str(raw_entities).strip():
+        return None
+    return [item.strip() for item in str(raw_entities).split(",") if item.strip()]
+
+
+def _resolve_entities(raw_entities: str | None, vertical: str | None) -> list[str] | None:
+    if vertical and vertical.strip():
+        return list(entities_for_vertical(vertical))
+    return _parse_entities(raw_entities)
+
+
+def _parse_min_score(default: float = 0.35) -> tuple[float | None, dict | None, int | None]:
+    payload = request.get_json(silent=True) or {}
+    raw = payload.get("min_score", request.form.get("min_score", default))
+    try:
+        return float(raw), None, None
+    except (TypeError, ValueError):
+        return None, {"error": "Field 'min_score' must be a number."}, 400
 
 
 @documents_bp.get("/types")
@@ -148,6 +171,45 @@ def summarize_document():
         return jsonify({"error": str(exc)}), 400
 
     return jsonify({"status": "ok", **result.to_dict()})
+
+
+@documents_bp.post("/detect-pii")
+@limiter.limit("60 per hour")
+def detect_pii_document():
+    """Detect Presidio PII in text or an uploaded document without PDF annotation."""
+    text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
+    if error_payload is not None:
+        return jsonify(error_payload), status_code
+
+    payload = request.get_json(silent=True) or {}
+    vertical = payload.get("vertical", request.form.get("vertical", ""))
+    vertical = vertical.strip() if isinstance(vertical, str) else ""
+    entities_raw = payload.get("entities", request.form.get("entities"))
+    try:
+        entities = _resolve_entities(
+            entities_raw if isinstance(entities_raw, str) else None,
+            vertical or None,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    min_score, min_score_error, min_score_status = _parse_min_score()
+    if min_score_error is not None:
+        return jsonify(min_score_error), min_score_status
+
+    try:
+        hits = detect_pii_in_text(text or "", entities=entities, min_score=min_score or 0.35)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
+
+    findings = [hit.to_dict() for hit in hits]
+    return jsonify(
+        {
+            "status": "ok",
+            "finding_count": len(findings),
+            "findings": findings,
+        }
+    )
 
 
 @documents_bp.post("/compare")

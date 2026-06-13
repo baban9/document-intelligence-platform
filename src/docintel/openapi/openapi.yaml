@@ -500,6 +500,37 @@ paths:
         "200":
           description: Extractive summary
 
+  /v1/documents/detect-pii:
+    post:
+      tags: [documents]
+      summary: Detect Presidio PII in text or an uploaded document
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectPiiRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                text:
+                  type: string
+                entities:
+                  type: string
+                vertical:
+                  type: string
+                  enum: [general, healthcare, financial, legal]
+                min_score:
+                  type: number
+      responses:
+        "200":
+          description: PII findings
+        "503":
+          description: Presidio stack unavailable
+
   /v1/documents/compare:
     post:
       tags: [documents]

@@ -100,25 +100,6 @@ def enqueue_annotate_job(
     )
 
 
-def enqueue_match_job(
-    job_id: str,
-    resume: str,
-    job_description: str,
-    top_keywords: int,
-) -> None:
-    queue = get_queue()
-    queue.enqueue(
-        "docintel.jobs.tasks.run_match_resume_job",
-        job_id=job_id,
-        resume=resume,
-        job_description=job_description,
-        top_keywords=top_keywords,
-        job_timeout=300,
-        result_ttl=DEFAULT_RESULT_TTL,
-        failure_ttl=DEFAULT_FAILURE_TTL,
-    )
-
-
 def enqueue_summarize_job(
     job_id: str,
     text: str,

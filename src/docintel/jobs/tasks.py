@@ -10,7 +10,6 @@ from docintel.services.pdf.models import Action, StructureMode
 from docintel.services.pdf.annotator import annotate_pdf
 from docintel.services.pdf.sensitive import detect_sensitive_pdf
 from docintel.services.pdf.structure import structure_pdf
-from docintel.services.matching import match_resume_to_job
 from docintel.services.summary import summarize_text
 
 
@@ -215,53 +214,6 @@ def run_annotate_pdf_job(
         progress=100,
         progress_message="Job completed",
         download_url=download_url,
-        result=result_payload,
-    )
-    _notify_webhook(callback_url, completed)
-    return result_payload
-
-
-def run_match_resume_job(
-    *,
-    job_id: str,
-    resume: str,
-    job_description: str,
-    top_keywords: int,
-) -> dict:
-    """Worker entrypoint: resume-to-job TF-IDF matching."""
-    record = get_job(job_id)
-    callback_url = record.callback_url if record else None
-
-    update_job(
-        job_id,
-        job_status=JobStatus.RUNNING.value,
-        progress=10,
-        progress_message="Matching resume to job description",
-    )
-
-    try:
-        result = match_resume_to_job(
-            resume=resume,
-            job_description=job_description,
-            top_keywords=top_keywords,
-        )
-    except Exception as exc:
-        failed = update_job(
-            job_id,
-            job_status=JobStatus.FAILED.value,
-            progress=100,
-            progress_message="Job failed",
-            error=str(exc),
-        )
-        _notify_webhook(callback_url, failed)
-        raise
-
-    result_payload = result.to_dict()
-    completed = update_job(
-        job_id,
-        job_status=JobStatus.COMPLETED.value,
-        progress=100,
-        progress_message="Job completed",
         result=result_payload,
     )
     _notify_webhook(callback_url, completed)

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docintel-platform"
-version = "1.0.2"
-description = "Enterprise document intelligence API for PDF compliance, extraction, structuring, and summarization."
+version = "1.1.0"
+description = "Enterprise document intelligence API for PDF compliance, multi-format extraction, structuring, and summarization."
 readme = "README.md"
 license = "MIT"
 license-files = []

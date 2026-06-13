@@ -199,3 +199,94 @@ class DocintelClient:
             )
         self._raise_for_status(response)
         return response.json()
+
+    def summarize_document(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        sentences: int = 3,
+    ) -> dict[str, Any]:
+        if path is not None:
+            file_path = Path(path)
+            with file_path.open("rb") as handle:
+                response = self._session.post(
+                    self._url("/v1/documents/summarize"),
+                    files={"file": (file_path.name, handle, "application/octet-stream")},
+                    data={"sentences": str(sentences)},
+                    timeout=self.timeout,
+                )
+        else:
+            response = self._session.post(
+                self._url("/v1/documents/summarize"),
+                json={"text": text or "", "sentences": sentences},
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()
+
+    def detect_pii_document(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        entities: str | None = None,
+        vertical: str | None = None,
+        min_score: float = 0.35,
+    ) -> dict[str, Any]:
+        data = {"min_score": str(min_score)}
+        if entities:
+            data["entities"] = entities
+        if vertical:
+            data["vertical"] = vertical
+        if path is not None:
+            file_path = Path(path)
+            with file_path.open("rb") as handle:
+                response = self._session.post(
+                    self._url("/v1/documents/detect-pii"),
+                    files={"file": (file_path.name, handle, "application/octet-stream")},
+                    data=data,
+                    timeout=self.timeout,
+                )
+        else:
+            payload = {"text": text or "", "min_score": min_score}
+            if entities:
+                payload["entities"] = entities
+            if vertical:
+                payload["vertical"] = vertical
+            response = self._session.post(
+                self._url("/v1/documents/detect-pii"),
+                json=payload,
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()
+
+    def compare_documents(
+        self,
+        *,
+        text_a: str | None = None,
+        text_b: str | None = None,
+        path_a: str | Path | None = None,
+        path_b: str | Path | None = None,
+    ) -> dict[str, Any]:
+        if path_a is not None and path_b is not None:
+            file_a = Path(path_a)
+            file_b = Path(path_b)
+            with file_a.open("rb") as handle_a, file_b.open("rb") as handle_b:
+                response = self._session.post(
+                    self._url("/v1/documents/compare"),
+                    files={
+                        "file_a": (file_a.name, handle_a, "application/octet-stream"),
+                        "file_b": (file_b.name, handle_b, "application/octet-stream"),
+                    },
+                    timeout=self.timeout,
+                )
+        else:
+            response = self._session.post(
+                self._url("/v1/documents/compare"),
+                json={"text_a": text_a or "", "text_b": text_b or ""},
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()

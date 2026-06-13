@@ -8,7 +8,7 @@
 
 Production document intelligence for compliance, extraction, and understanding across PDFs, Word, Excel, CSV, and plain text. One platform for Legal, Finance, Operations, Security, and Knowledge teams. Ship as a REST API, Gradio GUI, or Docker deployment.
 
-**Version:** 1.0.2
+**Version:** 1.1.0
 
 ---
 
@@ -36,7 +36,7 @@ summary = client.summarize(long_report_text, sentences=3)
 pdf_bytes = client.structure_pdf("scan.pdf", async_job=True)
 ```
 
-**Publish a release to PyPI** (maintainers): tag `v1.0.2` and push, or run `make publish-pypi` with trusted publishing on project `docintel-platform`.
+**Publish a release to PyPI** (maintainers): tag `v1.1.0` and push, or run `make publish-pypi` with trusted publishing on project `docintel-platform`.
 
 ---
 
@@ -98,6 +98,8 @@ The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if t
 | Multi-format identify | `POST /v1/documents/identify` | Document tools tab |
 | Multi-format text extract | `POST /v1/documents/extract-text` | Document tools tab |
 | Document classification | `POST /v1/documents/classify` | Document tools tab |
+| Document summarization | `POST /v1/documents/summarize` | Document tools tab |
+| Text PII detection | `POST /v1/documents/detect-pii` | Document tools tab |
 | Document comparison | `POST /v1/documents/compare` | Document tools tab |
 | Extractive summarization | `POST /v1/text/summarize` | Text summarization tab |
 | Batch async jobs | `POST /v1/batch` | - |

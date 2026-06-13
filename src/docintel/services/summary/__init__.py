@@ -1,6 +1,5 @@
-"""Text summarization service."""
+"""Text summarization service (compatibility shim)."""
 
-from docintel.services.summary.models import SummaryResult
-from docintel.services.summary.textrank import summarize_text
+from docintel.capabilities.understanding import SummaryResult, summarize_text
 
 __all__ = ["SummaryResult", "summarize_text"]

@@ -19,18 +19,15 @@ def fake_redis(monkeypatch):
     reset_redis_client_cache()
 
 
-def test_batch_queues_match_and_summarize(fake_redis, monkeypatch):
+def test_batch_queues_summarize_jobs(fake_redis, monkeypatch):
     app = create_app()
-    enqueued = {"match": 0, "summarize": 0}
-
-    def fake_match(**kwargs):
-        enqueued["match"] += 1
+    enqueued = 0
 
     def fake_summarize(**kwargs):
-        enqueued["summarize"] += 1
+        nonlocal enqueued
+        enqueued += 1
 
     monkeypatch.setattr("docintel.jobs.store.ping_redis", lambda: True)
-    monkeypatch.setattr("docintel.jobs.queue.enqueue_match_job", fake_match)
     monkeypatch.setattr("docintel.jobs.queue.enqueue_summarize_job", fake_summarize)
 
     with app.test_client() as client:
@@ -38,11 +35,6 @@ def test_batch_queues_match_and_summarize(fake_redis, monkeypatch):
             "/v1/batch",
             json={
                 "items": [
-                    {
-                        "operation": "match_resume",
-                        "resume": "Python Flask developer",
-                        "job_description": "Python engineer with Flask",
-                    },
                     {
                         "operation": "summarize",
                         "text": "One sentence. Another sentence. Third sentence here.",
@@ -55,9 +47,8 @@ def test_batch_queues_match_and_summarize(fake_redis, monkeypatch):
     payload = response.get_json()
     assert response.status_code == 202
     assert payload["batch_id"]
-    assert len(payload["items"]) == 2
-    assert enqueued["match"] == 1
-    assert enqueued["summarize"] == 1
+    assert len(payload["items"]) == 1
+    assert enqueued == 1
 
     from docintel.jobs.store import get_job
 

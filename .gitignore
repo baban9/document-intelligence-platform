@@ -28,6 +28,7 @@ build/
 # Runtime artifacts
 uploads/
 outputs/
+eval/reports/
 *.log
 
 # Test / coverage

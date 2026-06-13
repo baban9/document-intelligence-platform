@@ -1,0 +1,15 @@
+[
+  {
+    "name": "strong_python_match",
+    "resume": "Senior Python engineer with Flask, Docker, pytest, NLP, and REST API experience.",
+    "job_description": "We need a Python developer with Flask, Docker, API design, and NLP skills.",
+    "min_score": 30.0
+  },
+  {
+    "name": "weak_match",
+    "resume": "Marine biologist studying coral reef ecosystems and underwater photography.",
+    "job_description": "We need a Python developer with Flask, Docker, API design, and NLP skills.",
+    "min_score": 0.0,
+    "max_score": 15.0
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "short_article",
+    "text": "Document intelligence helps teams process PDFs faster. OCR extracts text from scanned pages. Presidio detects sensitive fields before data reaches downstream systems. Structured outputs make contracts searchable and easier to audit.",
+    "sentences": 2,
+    "min_sentences": 1
+  }
+]

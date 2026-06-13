@@ -1,4 +1,4 @@
-.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test build-dist publish-pypi clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-up docker-down docker-logs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -40,6 +40,9 @@ run-ui:
 
 test:
 	$(PYTEST) tests/ -q
+
+eval:
+	$(PYTHON) eval/run_eval.py
 
 build-dist:
 	$(PYTHON) -m build

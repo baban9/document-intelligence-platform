@@ -26,3 +26,21 @@ def classify_document():
         return jsonify({"error": str(exc)}), 400
 
     return jsonify({"status": "ok", **result.to_dict()})
+
+
+@documents_bp.post("/compare")
+@limiter.limit("120 per hour")
+def compare_documents():
+    """Compare two policy or contract texts for overlap."""
+    payload = request.get_json(silent=True) or {}
+    text_a = payload.get("text_a", "")
+    text_b = payload.get("text_b", "")
+    if not isinstance(text_a, str) or not isinstance(text_b, str):
+        return jsonify({"error": "Fields 'text_a' and 'text_b' must be strings."}), 400
+
+    try:
+        result = compare_texts(text_a, text_b)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **result.to_dict()})

@@ -22,10 +22,14 @@ from docintel.services.pdf import (
 pdf_bp = Blueprint("pdf", __name__, url_prefix="/v1/pdf")
 
 
-def _upload_dir() -> Path:
-    path = Path(current_app.config["UPLOAD_DIR"])
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def _storage():
+    from docintel.storage import get_storage
+
+    return get_storage()
+
+
+def _job_dir(job_id: str) -> Path:
+    return _storage().job_dir(job_id)
 
 
 def _parse_pages(raw_pages: str | None) -> list[int] | None:
@@ -62,8 +66,7 @@ def annotate():
         return jsonify({"error": "Invalid pages value. Use comma-separated page indexes."}), 400
 
     job_id = uuid.uuid4().hex[:12]
-    work_dir = _upload_dir() / job_id
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _job_dir(job_id)
 
     input_path = work_dir / filename
     output_path = work_dir / f"annotated_{filename}"
@@ -97,6 +100,8 @@ def annotate():
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+    _storage().sync_file(job_id, output_path.name)
 
     response_format = request.args.get("format", request.form.get("format", "file")).lower()
 
@@ -183,8 +188,7 @@ def detect_sensitive():
     run_async = _parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
-    work_dir = _upload_dir() / job_id
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _job_dir(job_id)
 
     input_path = work_dir / filename
     output_path = work_dir / f"sensitive_{filename}"
@@ -223,6 +227,8 @@ def detect_sensitive():
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+    _storage().sync_file(job_id, output_path.name)
 
     response_format = request.args.get("format", request.form.get("format", "file")).lower()
 
@@ -283,8 +289,7 @@ def structure():
     run_async = _parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
-    work_dir = _upload_dir() / job_id
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _job_dir(job_id)
 
     input_path = work_dir / filename
     output_path = work_dir / f"structured_{filename}"
@@ -317,6 +322,8 @@ def structure():
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+    _storage().sync_file(job_id, output_path.name)
 
     response_format = request.args.get("format", request.form.get("format", "file")).lower()
 
@@ -455,9 +462,10 @@ def download_file(job_id: str, filename: str):
     """Download a previously generated PDF when using JSON response mode."""
     safe_job = secure_filename(job_id)
     safe_name = secure_filename(filename)
-    file_path = _upload_dir() / safe_job / safe_name
 
-    if not file_path.is_file():
+    try:
+        file_path = _storage().resolve_download(safe_job, safe_name)
+    except FileNotFoundError:
         return jsonify({"error": "Annotated PDF not found."}), 404
 
     return send_file(

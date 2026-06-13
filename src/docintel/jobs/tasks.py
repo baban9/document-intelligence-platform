@@ -76,6 +76,7 @@ def run_structure_pdf_job(
 
     download_url = f"/v1/pdf/files/{job_id}/{output_filename}"
     result_payload = result.to_dict()
+    _sync_artifact(job_id, output_filename)
     completed = update_job(
         job_id,
         job_status=JobStatus.COMPLETED.value,
@@ -94,6 +95,12 @@ def _notify_webhook(callback_url: str | None, record: JobRecord) -> None:
     from docintel.jobs.webhooks import deliver_job_webhook
 
     deliver_job_webhook(callback_url, record.to_dict())
+
+
+def _sync_artifact(job_id: str, filename: str) -> None:
+    from docintel.storage import get_storage
+
+    get_storage().sync_file(job_id, filename)
 
 
 def run_detect_sensitive_pdf_job(
@@ -145,6 +152,7 @@ def run_detect_sensitive_pdf_job(
 
     download_url = f"/v1/pdf/files/{job_id}/{output_filename}"
     result_payload = result.to_dict()
+    _sync_artifact(job_id, output_filename)
     completed = update_job(
         job_id,
         job_status=JobStatus.COMPLETED.value,
@@ -199,6 +207,7 @@ def run_annotate_pdf_job(
 
     download_url = f"/v1/pdf/files/{job_id}/{output_filename}"
     result_payload = result.to_dict()
+    _sync_artifact(job_id, output_filename)
     completed = update_job(
         job_id,
         job_status=JobStatus.COMPLETED.value,

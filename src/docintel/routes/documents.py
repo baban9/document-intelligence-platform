@@ -14,6 +14,8 @@ from docintel.capabilities.extraction.formats import (
 )
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.capabilities.understanding.compare import compare_texts
+from docintel.services.summary import summarize_text
+from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
 from docintel.routes.document_upload import read_upload, save_upload
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/v1/documents")
@@ -51,6 +53,20 @@ def _resolve_text_from_upload_or_body(field_name: str = "text") -> tuple[str | N
     if text is None:
         return None, {"error": f"Provide JSON/form field '{field_name}' or upload a file."}, 400
     return text, None, None
+
+
+def _parse_sentence_count() -> tuple[int | None, dict | None, int | None]:
+    payload = request.get_json(silent=True) or {}
+    raw = payload.get("sentences", request.form.get("sentences", DEFAULT_SENTENCE_COUNT))
+    try:
+        sentences = int(raw)
+    except (TypeError, ValueError):
+        return None, {"error": "Field 'sentences' must be an integer."}, 400
+    if sentences < 1 or sentences > MAX_SENTENCE_COUNT:
+        return None, {
+            "error": f"Field 'sentences' must be between 1 and {MAX_SENTENCE_COUNT}."
+        }, 400
+    return sentences, None, None
 
 
 @documents_bp.get("/types")
@@ -108,6 +124,26 @@ def classify_document():
 
     try:
         result = classify_text(text or "")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **result.to_dict()})
+
+
+@documents_bp.post("/summarize")
+@limiter.limit("100 per hour")
+def summarize_document():
+    """Summarize text or an uploaded document using extractive TextRank."""
+    text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
+    if error_payload is not None:
+        return jsonify(error_payload), status_code
+
+    sentences, sentence_error, sentence_status = _parse_sentence_count()
+    if sentence_error is not None:
+        return jsonify(sentence_error), sentence_status
+
+    try:
+        result = summarize_text(text=text or "", sentence_count=sentences or DEFAULT_SENTENCE_COUNT)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

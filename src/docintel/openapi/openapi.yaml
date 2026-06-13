@@ -473,6 +473,33 @@ paths:
         "200":
           description: Category scores
 
+  /v1/documents/summarize:
+    post:
+      tags: [documents]
+      summary: Summarize text or an uploaded document
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SummarizeRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                text:
+                  type: string
+                sentences:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+      responses:
+        "200":
+          description: Extractive summary
+
   /v1/documents/compare:
     post:
       tags: [documents]

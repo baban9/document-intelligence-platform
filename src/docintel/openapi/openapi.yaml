@@ -531,6 +531,47 @@ paths:
         "503":
           description: Presidio stack unavailable
 
+  /v1/documents/process:
+    post:
+      tags: [documents]
+      summary: Unified pipeline (extract, classify, summarize, PII)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                sentences:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                include_summarize:
+                  type: boolean
+                  default: true
+                include_pii:
+                  type: boolean
+                  default: true
+                include_text:
+                  type: boolean
+                  default: false
+                vertical:
+                  type: string
+                  enum: [general, healthcare, financial, legal]
+                entities:
+                  type: string
+                min_score:
+                  type: number
+      responses:
+        "200":
+          description: Full processing report
+        "415":
+          description: Unsupported document
+
   /v1/documents/compare:
     post:
       tags: [documents]

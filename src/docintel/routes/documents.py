@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from docintel.auth.limiter import limiter
+from docintel.capabilities.pipeline import ProcessOptions, process_document
 from docintel.capabilities.extraction.formats import (
     extract_document_text,
     list_supported_types,
@@ -122,6 +123,55 @@ def _parse_min_score(default: float = 0.35) -> tuple[float | None, dict | None, 
         return None, {"error": "Field 'min_score' must be a number."}, 400
 
 
+def _parse_bool_field(name: str, default: bool) -> bool:
+    payload = request.get_json(silent=True) or {}
+    if name in payload:
+        value = payload[name]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+    raw = request.form.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_process_options() -> tuple[ProcessOptions | None, dict | None, int | None]:
+    sentences, sentence_error, sentence_status = _parse_sentence_count()
+    if sentence_error is not None:
+        return None, sentence_error, sentence_status
+
+    payload = request.get_json(silent=True) or {}
+    vertical = payload.get("vertical", request.form.get("vertical", ""))
+    vertical = vertical.strip() if isinstance(vertical, str) else ""
+    entities_raw = payload.get("entities", request.form.get("entities"))
+    try:
+        entities = _resolve_entities(
+            entities_raw if isinstance(entities_raw, str) else None,
+            vertical or None,
+        )
+    except ValueError as exc:
+        return None, {"error": str(exc)}, 400
+
+    min_score, min_score_error, min_score_status = _parse_min_score()
+    if min_score_error is not None:
+        return None, min_score_error, min_score_status
+
+    return (
+        ProcessOptions(
+            sentences=sentences or DEFAULT_SENTENCE_COUNT,
+            include_summarize=_parse_bool_field("include_summarize", True),
+            include_pii=_parse_bool_field("include_pii", True),
+            include_text=_parse_bool_field("include_text", False),
+            entities=entities,
+            min_score=min_score or 0.35,
+        ),
+        None,
+        None,
+    )
+
+
 @documents_bp.get("/types")
 @limiter.limit("120 per hour")
 def supported_document_types():
@@ -165,6 +215,37 @@ def extract_text_upload():
             return jsonify({"error": str(exc)}), 503
 
         return jsonify({"status": "ok", "filename": saved.filename, **result.to_dict()})
+
+
+@documents_bp.post("/process")
+@limiter.limit("30 per hour")
+def process_upload():
+    """Run extract, classify, summarize, and PII detection on one upload."""
+    upload = read_upload(request, "file")
+    if upload is None:
+        return jsonify({"error": "Missing file in form field 'file'."}), 400
+
+    options, option_error, option_status = _parse_process_options()
+    if option_error is not None:
+        return jsonify(option_error), option_status
+
+    with tempfile.TemporaryDirectory(prefix="docintel-process-") as temp_dir:
+        saved = save_upload(upload, Path(temp_dir))
+        try:
+            result = process_document(
+                saved.path,
+                filename=saved.filename,
+                content_type=saved.content_type,
+                options=options,
+            )
+        except ValueError as exc:
+            return jsonify(
+                {"error": str(exc), "detected": saved.identification.to_dict()}
+            ), 415
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
+
+        return jsonify({"status": "ok", **result.to_dict()})
 
 
 @documents_bp.post("/classify")

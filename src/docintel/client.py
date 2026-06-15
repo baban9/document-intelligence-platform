@@ -290,3 +290,37 @@ class DocintelClient:
             )
         self._raise_for_status(response)
         return response.json()
+
+    def process_document(
+        self,
+        path: str | Path,
+        *,
+        sentences: int = 3,
+        include_summarize: bool = True,
+        include_pii: bool = True,
+        include_text: bool = False,
+        entities: str | None = None,
+        vertical: str | None = None,
+        min_score: float = 0.35,
+    ) -> dict[str, Any]:
+        file_path = Path(path)
+        data = {
+            "sentences": str(sentences),
+            "include_summarize": str(include_summarize).lower(),
+            "include_pii": str(include_pii).lower(),
+            "include_text": str(include_text).lower(),
+            "min_score": str(min_score),
+        }
+        if entities:
+            data["entities"] = entities
+        if vertical:
+            data["vertical"] = vertical
+        with file_path.open("rb") as handle:
+            response = self._session.post(
+                self._url("/v1/documents/process"),
+                files={"file": (file_path.name, handle, "application/octet-stream")},
+                data=data,
+                timeout=self.timeout,
+            )
+        self._raise_for_status(response)
+        return response.json()

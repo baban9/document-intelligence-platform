@@ -101,6 +101,7 @@ The GUI calls the same REST API as external clients. Set `DOCINTEL_API_URL` if t
 | Document summarization | `POST /v1/documents/summarize` | Document tools tab |
 | Text PII detection | `POST /v1/documents/detect-pii` | Document tools tab |
 | Document comparison | `POST /v1/documents/compare` | Document tools tab |
+| Unified document pipeline | `POST /v1/documents/process` | - |
 | Extractive summarization | `POST /v1/text/summarize` | Text summarization tab |
 | Batch async jobs | `POST /v1/batch` | - |
 | Health and metrics | `GET /health`, `GET /metrics` | - |
@@ -451,6 +452,15 @@ curl -X POST http://127.0.0.1:5000/v1/documents/summarize \
 curl -X POST http://127.0.0.1:5000/v1/documents/detect-pii \
   -F "file=@notes.txt" \
   -F "vertical=healthcare"
+```
+
+Unified pipeline (extract, classify, summarize, PII in one request):
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/documents/process \
+  -F "file=@policy.docx" \
+  -F "sentences=3" \
+  -F "include_pii=true"
 ```
 
 Vertical Presidio presets for PDF sensitive scan:

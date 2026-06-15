@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml requirements.txt README.md LICENSE run_ui.py ./
 COPY src ./src
 
-RUN pip install --upgrade pip && pip install -e ".[ocr,ui,jobs,auth]" \
+RUN pip install --upgrade pip && pip install -e ".[ocr,ui,jobs,auth,documents]" \
     && python -m spacy download en_core_web_sm
 
 RUN mkdir -p /app/uploads

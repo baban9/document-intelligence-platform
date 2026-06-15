@@ -54,7 +54,17 @@ components:
           type: string
         job_type:
           type: string
-          enum: [pdf_structure, pdf_detect_sensitive, pdf_annotate, text_summarize, batch]
+          enum:
+            [
+              pdf_structure,
+              pdf_detect_sensitive,
+              pdf_annotate,
+              text_summarize,
+              text_classify,
+              text_detect_pii,
+              document_process,
+              batch,
+            ]
         job_status:
           type: string
           enum: [queued, running, completed, failed]
@@ -535,6 +545,13 @@ paths:
     post:
       tags: [documents]
       summary: Unified pipeline (extract, classify, summarize, PII)
+      parameters:
+        - name: async
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Queue job and return 202 when true
       requestBody:
         required: true
         content:
@@ -564,11 +581,20 @@ paths:
                   enum: [general, healthcare, financial, legal]
                 entities:
                   type: string
-                min_score:
-                  type: number
+                callback_url:
+                  type: string
+                  format: uri
+                async:
+                  type: boolean
       responses:
         "200":
           description: Full processing report
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
         "415":
           description: Unsupported document
 
@@ -622,7 +648,7 @@ paths:
   /v1/batch:
     post:
       tags: [batch]
-      summary: Queue multiple async summarization jobs
+      summary: Queue multiple async text document jobs
       requestBody:
         required: true
         content:
@@ -642,12 +668,23 @@ paths:
                     properties:
                       operation:
                         type: string
-                        enum: [summarize]
+                        enum: [summarize, classify, detect_pii, process]
                       text:
                         type: string
                       sentences:
                         type: integer
                         default: 3
+                      include_summarize:
+                        type: boolean
+                      include_pii:
+                        type: boolean
+                      vertical:
+                        type: string
+                        enum: [general, healthcare, financial, legal]
+                      entities:
+                        type: string
+                      min_score:
+                        type: number
       responses:
         "202":
           description: Batch queued

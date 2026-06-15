@@ -463,6 +463,27 @@ curl -X POST http://127.0.0.1:5000/v1/documents/process \
   -F "include_pii=true"
 ```
 
+Async document process (poll `GET /v1/jobs/<job_id>`):
+
+```bash
+curl -X POST "http://127.0.0.1:5000/v1/documents/process?async=true" \
+  -F "file=@policy.docx" \
+  -F "sentences=3"
+```
+
+Batch text jobs (summarize, classify, detect PII, full process):
+
+```bash
+curl -X POST http://127.0.0.1:5000/v1/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"operation": "classify", "text": "Master service agreement..."},
+      {"operation": "process", "text": "Contract clause...", "include_pii": false}
+    ]
+  }'
+```
+
 Vertical Presidio presets for PDF sensitive scan:
 
 ```bash

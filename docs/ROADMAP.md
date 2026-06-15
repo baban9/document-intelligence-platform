@@ -108,6 +108,30 @@ Document architecture tradeoffs and production readiness checklist
 
 ---
 
+## Milestone 10: Multi-format documents
+
+**Issue title:** `M10: Support Word, Excel, CSV, and document identification`  
+**Status:** Done
+
+**Deliverables:**
+- MIME sniffing and text extraction for office formats
+- `/v1/documents/types`, `identify`, `extract-text`
+- Docker image includes `[documents]` extra
+
+---
+
+## Milestone 11: Document workflows
+
+**Issue title:** `M11: Unified process pipeline, async jobs, and batch text operations`  
+**Status:** Done
+
+**Deliverables:**
+- `POST /v1/documents/process` unified pipeline
+- Async `document_process` jobs via Redis/RQ
+- Batch operations: `summarize`, `classify`, `detect_pii`, `process`
+
+---
+
 ## Legacy code sources
 
 | Feature | Legacy source |

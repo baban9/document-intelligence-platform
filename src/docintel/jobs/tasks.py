@@ -262,6 +262,168 @@ def run_summarize_job(
     return result_payload
 
 
+def run_classify_job(*, job_id: str, text: str) -> dict:
+    from docintel.capabilities.understanding.classify import classify_text
+
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Classifying text",
+    )
+    try:
+        result_payload = classify_text(text).to_dict()
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def run_detect_pii_text_job(
+    *,
+    job_id: str,
+    text: str,
+    entities: list[str] | None = None,
+    min_score: float = 0.35,
+) -> dict:
+    from docintel.services.pdf.pii import detect_pii_in_text
+
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Detecting PII",
+    )
+    try:
+        hits = detect_pii_in_text(text, entities=entities, min_score=min_score)
+        findings = [hit.to_dict() for hit in hits]
+        result_payload = {"finding_count": len(findings), "findings": findings}
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def run_document_process_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    options: dict,
+) -> dict:
+    from docintel.capabilities.pipeline import ProcessOptions, process_document
+
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=10,
+        progress_message="Processing document",
+    )
+    try:
+        result = process_document(
+            input_path,
+            filename=filename,
+            content_type=content_type,
+            options=ProcessOptions.from_dict(options),
+        )
+        result_payload = result.to_dict()
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def run_document_process_text_job(*, job_id: str, text: str, options: dict) -> dict:
+    from docintel.capabilities.pipeline import ProcessOptions, process_text
+
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=10,
+        progress_message="Processing text",
+    )
+    try:
+        result = process_text(text, options=ProcessOptions.from_dict(options))
+        result_payload = result.to_dict()
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
 def create_queued_job(
     job_id: str,
     *,

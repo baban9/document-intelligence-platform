@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+import uuid
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -19,7 +20,7 @@ from docintel.services.pdf import entities_for_vertical
 from docintel.services.pdf.pii import detect_pii_in_text
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
-from docintel.routes.document_upload import read_upload, save_upload
+from docintel.routes.document_upload import job_dir, parse_async_flag, read_upload, save_upload
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/v1/documents")
 
@@ -229,6 +230,22 @@ def process_upload():
     if option_error is not None:
         return jsonify(option_error), option_status
 
+    callback_url = request.form.get("callback_url", "").strip() or None
+    run_async = parse_async_flag()
+
+    if run_async:
+        job_id = uuid.uuid4().hex[:12]
+        work_dir = job_dir(job_id)
+        saved = save_upload(upload, work_dir)
+        return _enqueue_document_process_job(
+            job_id=job_id,
+            input_path=saved.path,
+            filename=saved.filename,
+            content_type=saved.content_type,
+            options=options.to_dict() if options else {},
+            callback_url=callback_url,
+        )
+
     with tempfile.TemporaryDirectory(prefix="docintel-process-") as temp_dir:
         saved = save_upload(upload, Path(temp_dir))
         try:
@@ -246,6 +263,37 @@ def process_upload():
             return jsonify({"error": str(exc)}), 503
 
         return jsonify({"status": "ok", **result.to_dict()})
+
+
+def _enqueue_document_process_job(
+    *,
+    job_id: str,
+    input_path: Path,
+    filename: str,
+    content_type: str | None,
+    options: dict,
+    callback_url: str | None,
+):
+    from docintel.jobs.helpers import enqueue_async_response
+    from docintel.jobs.models import JobType
+    from docintel.jobs.queue import enqueue_document_process_job
+
+    accepted = enqueue_async_response(
+        job_id=job_id,
+        job_type=JobType.DOCUMENT_PROCESS,
+        callback_url=callback_url,
+    )
+    if accepted[1] != 202:
+        return accepted
+
+    enqueue_document_process_job(
+        job_id=job_id,
+        input_path=str(input_path),
+        filename=filename,
+        content_type=content_type,
+        options=options,
+    )
+    return accepted
 
 
 @documents_bp.post("/classify")

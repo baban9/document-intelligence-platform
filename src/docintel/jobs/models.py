@@ -27,6 +27,9 @@ class JobType(str, Enum):
     PDF_DETECT_SENSITIVE = "pdf_detect_sensitive"
     PDF_ANNOTATE = "pdf_annotate"
     TEXT_SUMMARIZE = "text_summarize"
+    TEXT_CLASSIFY = "text_classify"
+    TEXT_DETECT_PII = "text_detect_pii"
+    DOCUMENT_PROCESS = "document_process"
     BATCH = "batch"
 
 

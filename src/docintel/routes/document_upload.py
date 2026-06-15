@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from flask import Request
+from flask import Request, request
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
@@ -58,3 +58,14 @@ def pdf_required_message(identification: IdentificationResult) -> dict:
 
 def is_pdf_upload(identification: IdentificationResult) -> bool:
     return identification.kind is DocumentKind.PDF
+
+
+def parse_async_flag() -> bool:
+    raw = request.args.get("async", request.form.get("async", "false"))
+    return str(raw).strip().lower() == "true"
+
+
+def job_dir(job_id: str) -> Path:
+    from docintel.storage import get_storage
+
+    return get_storage().job_dir(job_id)

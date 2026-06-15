@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from docintel.capabilities.extraction.formats import (
+    DocumentKind,
     IdentificationResult,
     extract_document_text,
     identify_document,
@@ -26,6 +27,30 @@ class ProcessOptions:
     text_preview_chars: int = 500
     entities: list[str] | None = None
     min_score: float = 0.35
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sentences": self.sentences,
+            "include_summarize": self.include_summarize,
+            "include_pii": self.include_pii,
+            "include_text": self.include_text,
+            "text_preview_chars": self.text_preview_chars,
+            "entities": self.entities,
+            "min_score": self.min_score,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "ProcessOptions":
+        entities = payload.get("entities")
+        return cls(
+            sentences=int(payload.get("sentences", DEFAULT_SENTENCE_COUNT)),
+            include_summarize=bool(payload.get("include_summarize", True)),
+            include_pii=bool(payload.get("include_pii", True)),
+            include_text=bool(payload.get("include_text", False)),
+            text_preview_chars=int(payload.get("text_preview_chars", 500)),
+            entities=list(entities) if entities else None,
+            min_score=float(payload.get("min_score", 0.35)),
+        )
 
 
 @dataclass(frozen=True)
@@ -116,6 +141,67 @@ def process_document(
 
     return ProcessResult(
         filename=filename or file_path.name,
+        identification=identification,
+        extraction_report=extraction_report,
+        classification=classification,
+        summary=summary_payload,
+        pii=pii_payload,
+    )
+
+
+def process_text(text: str, *, options: ProcessOptions | None = None) -> ProcessResult:
+    """Run classify, summarize, and PII on plain text without a file upload."""
+    cleaned = text.strip()
+    if not cleaned:
+        raise ValueError("Text must not be empty.")
+
+    selected = options or ProcessOptions()
+    classification = classify_text(cleaned).to_dict()
+
+    summary_payload: dict[str, Any] | None = None
+    if selected.include_summarize:
+        summary_payload = summarize_text(cleaned, sentence_count=selected.sentences).to_dict()
+
+    pii_payload: dict[str, Any] | None = None
+    if selected.include_pii:
+        try:
+            hits = detect_pii_in_text(
+                cleaned,
+                entities=selected.entities,
+                min_score=selected.min_score,
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "PII detection requires Presidio. Install: pip install -e '.[ocr]'"
+            ) from exc
+        findings = [hit.to_dict() for hit in hits]
+        pii_payload = {"finding_count": len(findings), "findings": findings}
+
+    preview = cleaned[: selected.text_preview_chars]
+    if len(cleaned) > selected.text_preview_chars:
+        preview += "\n...(truncated)"
+    extraction_report = {
+        "kind": "plain_text",
+        "mime_type": "text/plain",
+        "text": cleaned if selected.include_text else None,
+        "text_preview": preview if not selected.include_text else cleaned,
+        "char_count": len(cleaned),
+        "metadata": {},
+        "segment_count": 1,
+    }
+    if not selected.include_text:
+        extraction_report.pop("text", None)
+
+    identification = IdentificationResult(
+        kind=DocumentKind.PLAIN_TEXT,
+        mime_type="text/plain",
+        extension=".txt",
+        detected_by="text_input",
+        profile=None,
+    )
+
+    return ProcessResult(
+        filename="inline.txt",
         identification=identification,
         extraction_report=extraction_report,
         classification=classification,

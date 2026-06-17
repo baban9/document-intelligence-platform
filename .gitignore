@@ -35,3 +35,6 @@ eval/reports/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Cursor IDE (local editor rules)
+.cursor/

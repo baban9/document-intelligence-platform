@@ -521,7 +521,7 @@ def build_ui():
             gr.Markdown(
                 "Run extract, classify, summarize, and PII detection in one async job. "
                 "Requires Redis and a worker (`make run-worker` or docker-compose worker). "
-                "Word and Excel need `pip install -e '.[documents]'` on the API server."
+                "Office formats need `pip install -e '.[documents]'` on the API server (Word, Excel, PowerPoint)."
             )
             from docintel.capabilities.compliance.presets import list_vertical_presets
 
@@ -563,7 +563,7 @@ def build_ui():
         with gr.Tab("Document tools"):
             gr.Markdown(
                 "Identify, extract, classify, summarize, scan for PII, and compare office documents. "
-                "Requires `pip install -e '.[documents]'` for Word and Excel."
+                "Requires `pip install -e '.[documents]'` for Word, Excel, and PowerPoint."
             )
             with gr.Row():
                 doc_file = gr.File(label="Document upload", file_types=office_types)

@@ -104,6 +104,7 @@ curl -X POST "http://127.0.0.1:5000/v1/documents/process?async=true" \
 
 ```bash
 make setup              # venv + dev deps
+make setup-hooks        # block Cursor agent co-author trailers on commit
 make setup-ocr          # EasyOCR, Presidio, spaCy model
 make setup-llm          # OpenAI client (structure endpoint)
 make setup-ui           # Gradio

@@ -13,14 +13,24 @@ Enterprise document intelligence API: PDF compliance (OCR, PII, redaction), LLM 
 
 ## Quick start
 
-**Docker (API + Gradio UI + worker):**
+**Docker (slim core, optional UI and OCR):**
 
 ```bash
 git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth
-make docker-up
+make docker-up         # redis + API + worker (~2 min build, no PyTorch)
+make docker-up-ui      # add Gradio when API is healthy
 ```
+
+| Command | What starts |
+|---------|-------------|
+| `make docker-up` | Redis, slim API, slim worker (documents, PII text, digital PDF) |
+| `make docker-up-ui` | Gradio UI (`--profile ui`) |
+| `make docker-up-ocr` | Rebuild with CPU-only OCR for scanned PDFs (no NVIDIA) |
+| `make docker-up-full` | OCR stack + UI |
+
+Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `make docker-up-ocr`.
 
 | Service | URL |
 |---------|-----|

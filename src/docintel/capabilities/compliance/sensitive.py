@@ -40,7 +40,7 @@ def _ensure_ocr_stack() -> None:
     except ImportError as exc:
         raise RuntimeError(
             "OCR and Presidio dependencies are not installed. "
-            "Run: pip install -e '.[ocr]' && python -m spacy download en_core_web_sm"
+            "Run: pip install -e '.[pii]' && pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -e '.[ocr]'"
         ) from exc
 
 

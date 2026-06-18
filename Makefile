@@ -1,4 +1,4 @@
-.PHONY: setup setup-ocr setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-up docker-down docker-logs
+.PHONY: setup setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -11,7 +11,13 @@ setup:
 	$(PIP) install -e ".[dev]"
 
 setup-ocr:
+	$(PIP) install -e ".[pii]"
+	$(PIP) install torch --index-url https://download.pytorch.org/whl/cpu
 	$(PIP) install -e ".[ocr]"
+	$(PYTHON) -m spacy download en_core_web_sm
+
+setup-pii:
+	$(PIP) install -e ".[pii]"
 	$(PYTHON) -m spacy download en_core_web_sm
 
 setup-llm:
@@ -55,10 +61,27 @@ clean:
 	rm -rf .pytest_cache dist build *.egg-info
 
 docker-build:
-	$(COMPOSE) build
+	DOCINTEL_DOCKER_TARGET=slim $(COMPOSE) build api
+
+docker-build-ocr:
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) build api worker
+
+docker-up-core:
+	$(COMPOSE) up -d redis
+	$(COMPOSE) up -d --build api
+	$(COMPOSE) up -d worker
 
 docker-up:
-	$(COMPOSE) up --build -d
+	$(COMPOSE) up -d --build redis api worker
+
+docker-up-ui:
+	$(COMPOSE) --profile ui up -d --build ui
+
+docker-up-ocr:
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
+
+docker-up-full:
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
 
 docker-down:
 	$(COMPOSE) down

@@ -1,3 +1,8 @@
+# Fast default: Redis + slim API + slim worker (no PyTorch, no Gradio).
+# Optional profiles:
+#   ui  - Gradio on :7860
+#   ocr - CPU OCR image for scanned PDF routes (rebuilds api + worker)
+
 services:
   redis:
     image: redis:7-alpine
@@ -5,12 +10,16 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
+      start_period: 5s
 
   api:
-    build: .
+    build:
+      context: .
+      target: ${DOCINTEL_DOCKER_TARGET:-slim}
+    image: docintel-platform:${DOCINTEL_DOCKER_TARGET:-slim}
     ports:
       - "${DOCINTEL_PORT:-5000}:5000"
     environment:
@@ -27,13 +36,16 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 45s
 
   worker:
-    build: .
+    image: docintel-platform:${DOCINTEL_DOCKER_TARGET:-slim}
+    build:
+      context: .
+      target: ${DOCINTEL_DOCKER_TARGET:-slim}
     environment:
       DOCINTEL_LOG_LEVEL: ${DOCINTEL_LOG_LEVEL:-INFO}
       DOCINTEL_REDIS_URL: redis://redis:6379/0
@@ -48,7 +60,11 @@ services:
     command: ["python", "run_worker.py"]
 
   ui:
-    build: .
+    profiles: [ui]
+    build:
+      context: .
+      target: ui
+    image: docintel-platform:ui
     ports:
       - "${GRADIO_PORT:-7860}:7860"
     environment:

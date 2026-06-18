@@ -10,7 +10,7 @@ Checklist and operating notes for running the document intelligence platform in 
 | Webhooks | Set `DOCINTEL_WEBHOOK_SECRET` for signed job callbacks |
 | Storage | Choose `local` or `s3`; verify bucket IAM and lifecycle rules |
 | Redis | Provision Redis for RQ workers; match `REDIS_URL` in API and workers |
-| OCR stack | Install `pip install -e '.[ocr]'` and `en_core_web_sm` on worker images |
+| OCR stack | Default Docker is `slim` (no PyTorch). For scanned PDFs use `make docker-up-ocr` (CPU torch only) |
 | LLM structuring | Set `OPENAI_API_KEY` or compatible endpoint for structure jobs |
 | Metrics | Scrape `GET /metrics?format=prometheus` or poll JSON metrics |
 | Auth | Enable `DOCINTEL_AUTH_MODE` before exposing to the public internet |
@@ -36,7 +36,7 @@ OCR render scale defaults to 2.0 (`OCR_RENDER_SCALE`). Lower it to reduce memory
 | Symptom | Likely cause | Mitigation |
 |---------|--------------|------------|
 | 503 on async routes | Redis unavailable | Restore Redis; jobs fail closed |
-| OCR runtime error | Missing `[ocr]` extras or spaCy model | Install deps on worker container |
+| OCR runtime error | Missing `[pii]` or `[ocr]` extras | Slim image: `pip install -e '.[pii]'`. Scanned PDF: CPU torch + `[ocr]` |
 | Empty sensitive findings | `min_score` too high or wrong entity list | Lower score or use a vertical preset |
 | Structure timeout | LLM rate limits or large document | Chunk pages; increase worker timeout |
 | Webhook not received | Wrong URL or bad signature | Verify secret and endpoint logs |

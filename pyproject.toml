@@ -57,12 +57,15 @@ documents = [
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
 ]
-ocr = [
-    "easyocr>=1.7.2",
+pii = [
     "presidio-analyzer>=2.2.354",
     "spacy>=3.7.0",
+]
+# Scanned PDF OCR (EasyOCR). Install CPU torch before this extra in Docker:
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+ocr = [
+    "easyocr>=1.7.2",
     "opencv-python-headless>=4.10.0",
-    "torch>=2.4.1",
 ]
 ui = [
     "gradio>=4.44.0",
@@ -85,10 +88,9 @@ auth = [
 ]
 all = [
     "easyocr>=1.7.2",
+    "opencv-python-headless>=4.10.0",
     "presidio-analyzer>=2.2.354",
     "spacy>=3.7.0",
-    "opencv-python-headless>=4.10.0",
-    "torch>=2.4.1",
     "openai>=1.54.0",
     "redis>=5.0.8",
     "rq>=1.16.2",

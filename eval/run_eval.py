@@ -126,7 +126,7 @@ def eval_pii() -> dict:
             "passed": 0,
             "total": 0,
             "skipped": True,
-            "reason": "Presidio not installed. Run: pip install -e '.[ocr]'",
+            "reason": "Presidio not installed. Run: pip install -e '.[pii]'",
             "cases": [],
         }
 

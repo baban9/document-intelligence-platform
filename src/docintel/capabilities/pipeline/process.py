@@ -119,7 +119,7 @@ def process_document(
             )
         except RuntimeError as exc:
             raise RuntimeError(
-                "PII detection requires Presidio. Install: pip install -e '.[ocr]'"
+                "PII detection requires Presidio. Install: pip install -e '.[pii]'"
             ) from exc
         findings = [hit.to_dict() for hit in hits]
         pii_payload = {"finding_count": len(findings), "findings": findings}
@@ -172,7 +172,7 @@ def process_text(text: str, *, options: ProcessOptions | None = None) -> Process
             )
         except RuntimeError as exc:
             raise RuntimeError(
-                "PII detection requires Presidio. Install: pip install -e '.[ocr]'"
+                "PII detection requires Presidio. Install: pip install -e '.[pii]'"
             ) from exc
         findings = [hit.to_dict() for hit in hits]
         pii_payload = {"finding_count": len(findings), "findings": findings}

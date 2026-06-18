@@ -336,6 +336,65 @@ def detect_pii_document_ui(upload_file: Any) -> str:
     return _post_document_file("/v1/documents/detect-pii", path)
 
 
+def format_process_result_for_display(result: dict[str, Any]) -> dict[str, Any]:
+    """Trim large text fields for Gradio output."""
+    display = dict(result)
+    extraction = display.get("extraction")
+    if isinstance(extraction, dict) and isinstance(extraction.get("text"), str):
+        text = extraction["text"]
+        if len(text) > 2000:
+            trimmed = dict(extraction)
+            trimmed["text_preview"] = text[:2000] + "\n...(truncated)"
+            trimmed.pop("text", None)
+            display["extraction"] = trimmed
+    return display
+
+
+def process_document_ui(
+    upload_file: Any,
+    sentences: int,
+    include_summarize: bool,
+    include_pii: bool,
+    include_text: bool,
+    vertical: str,
+    entities: str,
+) -> str:
+    """Run unified extract, classify, summarize, and PII pipeline via async jobs."""
+    path = resolve_upload_path(upload_file)
+    if path is None:
+        return "Upload a document."
+
+    data = {
+        "sentences": str(int(sentences)),
+        "include_summarize": str(include_summarize).lower(),
+        "include_pii": str(include_pii).lower(),
+        "include_text": str(include_text).lower(),
+    }
+    if vertical.strip():
+        data["vertical"] = vertical.strip()
+    elif entities.strip():
+        data["entities"] = entities.strip()
+
+    with path.open("rb") as handle:
+        response = requests.post(
+            f"{API_BASE}/v1/documents/process?async=true",
+            files={"file": (path.name, handle, "application/octet-stream")},
+            data=data,
+            headers=_api_headers(),
+            timeout=120,
+        )
+
+    formatted = _format_json_response(response)
+    try:
+        payload = json.loads(formatted)
+    except json.JSONDecodeError:
+        return formatted
+
+    if isinstance(payload, dict) and payload.get("classification") is not None:
+        return json.dumps(format_process_result_for_display(payload), indent=2)
+    return formatted
+
+
 def compare_documents_ui(file_a: Any, file_b: Any) -> str:
     path_a = resolve_upload_path(file_a)
     path_b = resolve_upload_path(file_b)
@@ -458,6 +517,49 @@ def build_ui():
             )
 
         office_types = [".pdf", ".docx", ".xlsx", ".csv", ".txt", ".md", ".json"]
+        with gr.Tab("Document process"):
+            gr.Markdown(
+                "Run extract, classify, summarize, and PII detection in one async job. "
+                "Requires Redis and a worker (`make run-worker` or docker-compose worker). "
+                "Word and Excel need `pip install -e '.[documents]'` on the API server."
+            )
+            from docintel.capabilities.compliance.presets import list_vertical_presets
+
+            vertical_choices = [""] + sorted(list_vertical_presets().keys())
+            with gr.Row():
+                process_file = gr.File(label="Document upload", file_types=office_types)
+                process_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
+            with gr.Row():
+                process_include_summary = gr.Checkbox(label="Include summary", value=True)
+                process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
+                process_include_text = gr.Checkbox(label="Include extracted text", value=False)
+            with gr.Row():
+                process_vertical = gr.Dropdown(
+                    vertical_choices,
+                    value="",
+                    label="PII vertical preset (optional)",
+                )
+                process_entities = gr.Textbox(
+                    label="PII entities override (comma-separated, optional)",
+                    placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
+                )
+            process_btn = gr.Button("Process document", variant="primary")
+            process_output = gr.Textbox(label="Process report", lines=18)
+
+            process_btn.click(
+                process_document_ui,
+                inputs=[
+                    process_file,
+                    process_sentences,
+                    process_include_summary,
+                    process_include_pii,
+                    process_include_text,
+                    process_vertical,
+                    process_entities,
+                ],
+                outputs=process_output,
+            )
+
         with gr.Tab("Document tools"):
             gr.Markdown(
                 "Identify, extract, classify, summarize, scan for PII, and compare office documents. "

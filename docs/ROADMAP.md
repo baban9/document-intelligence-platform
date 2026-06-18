@@ -132,6 +132,19 @@ Document architecture tradeoffs and production readiness checklist
 
 ---
 
+## Milestone 12: Production integrations
+
+**Issue title:** `M12: S3 document ingest, job retention, and webhook docs`  
+**Status:** Done
+
+**Deliverables:**
+- `POST /v1/documents/ingest` queues S3 objects through the unified process pipeline
+- Worker downloads from S3 then runs `document_process` (no blocking download on the API)
+- `DOCINTEL_JOB_TTL_SECONDS` controls Redis job metadata retention
+- [docs/WEBHOOKS.md](WEBHOOKS.md) documents callback URLs and HMAC verification
+
+---
+
 ## Legacy code sources
 
 | Feature | Legacy source |

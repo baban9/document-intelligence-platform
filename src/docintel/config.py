@@ -11,6 +11,7 @@ class Config:
     LOG_LEVEL = os.getenv("DOCINTEL_LOG_LEVEL", "INFO")
     REDIS_URL = os.getenv("DOCINTEL_REDIS_URL", "redis://localhost:6379/0")
     JOBS_ENABLED = os.getenv("DOCINTEL_JOBS_ENABLED", "true").lower() == "true"
+    JOB_TTL_SECONDS = int(os.getenv("DOCINTEL_JOB_TTL_SECONDS", str(60 * 60 * 24 * 7)))
     QUEUE_NAME = os.getenv("DOCINTEL_QUEUE_NAME", "docintel")
     API_KEYS = os.getenv("DOCINTEL_API_KEYS", "")
     AUTH_REQUIRED = os.getenv("DOCINTEL_AUTH_REQUIRED", "false").lower() == "true"

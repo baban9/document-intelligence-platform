@@ -416,3 +416,45 @@ class DocintelClient:
                 data=data,
                 poll=poll,
             )
+
+    def ingest_document_from_s3(
+        self,
+        *,
+        s3_uri: str | None = None,
+        bucket: str | None = None,
+        key: str | None = None,
+        sentences: int = 3,
+        include_summarize: bool = True,
+        include_pii: bool = True,
+        include_text: bool = False,
+        entities: str | None = None,
+        vertical: str | None = None,
+        min_score: float = 0.35,
+        callback_url: str | None = None,
+        poll: bool = True,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "operation": "process",
+            "sentences": sentences,
+            "include_summarize": include_summarize,
+            "include_pii": include_pii,
+            "include_text": include_text,
+            "min_score": min_score,
+        }
+        if s3_uri:
+            body["s3_uri"] = s3_uri
+        if bucket:
+            body["bucket"] = bucket
+        if key:
+            body["key"] = key
+        if entities:
+            body["entities"] = entities
+        if vertical:
+            body["vertical"] = vertical
+        if callback_url:
+            body["callback_url"] = callback_url
+        return self._post_async_json(
+            "/v1/documents/ingest",
+            json_body=body,
+            poll=poll,
+        )

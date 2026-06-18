@@ -541,6 +541,66 @@ paths:
         "503":
           description: Presidio stack unavailable
 
+  /v1/documents/ingest:
+    post:
+      tags: [documents]
+      summary: Queue process pipeline for an S3 object
+      description: |
+        Downloads the object in the worker, then runs the same pipeline as
+        POST /v1/documents/process. Always returns 202 when Redis is available.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operation]
+              properties:
+                s3_uri:
+                  type: string
+                  example: s3://my-bucket/inbox/policy.docx
+                bucket:
+                  type: string
+                key:
+                  type: string
+                operation:
+                  type: string
+                  enum: [process]
+                  default: process
+                sentences:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                include_summarize:
+                  type: boolean
+                  default: true
+                include_pii:
+                  type: boolean
+                  default: true
+                include_text:
+                  type: boolean
+                  default: false
+                vertical:
+                  type: string
+                entities:
+                  type: string
+                min_score:
+                  type: number
+                callback_url:
+                  type: string
+                  format: uri
+      responses:
+        "202":
+          description: S3 ingest job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsyncAccepted"
+        "400":
+          description: Invalid S3 location or options
+        "503":
+          description: Async jobs unavailable
+
   /v1/documents/process:
     post:
       tags: [documents]

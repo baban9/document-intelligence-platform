@@ -12,6 +12,15 @@ JOB_KEY_PREFIX = "docintel:job:"
 DEFAULT_JOB_TTL_SECONDS = 60 * 60 * 24 * 7
 
 
+def job_ttl_seconds() -> int:
+    raw = os.getenv("DOCINTEL_JOB_TTL_SECONDS", str(DEFAULT_JOB_TTL_SECONDS)).strip()
+    try:
+        ttl = int(raw)
+    except ValueError:
+        return DEFAULT_JOB_TTL_SECONDS
+    return max(ttl, 60)
+
+
 def redis_url() -> str:
     return os.getenv("DOCINTEL_REDIS_URL", "redis://localhost:6379/0").strip()
 
@@ -37,9 +46,10 @@ def _job_key(job_id: str) -> str:
     return f"{JOB_KEY_PREFIX}{job_id}"
 
 
-def save_job(record: JobRecord, ttl_seconds: int = DEFAULT_JOB_TTL_SECONDS) -> None:
+def save_job(record: JobRecord, ttl_seconds: int | None = None) -> None:
     client = _redis_client()
-    client.set(_job_key(record.job_id), json.dumps(record.to_dict()), ex=ttl_seconds)
+    resolved_ttl = ttl_seconds if ttl_seconds is not None else job_ttl_seconds()
+    client.set(_job_key(record.job_id), json.dumps(record.to_dict()), ex=resolved_ttl)
 
 
 def get_job(job_id: str) -> JobRecord | None:

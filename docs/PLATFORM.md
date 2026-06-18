@@ -16,7 +16,7 @@ The platform layer wraps enterprise capabilities with shared services used by ev
 
 ## Jobs
 
-Async work uses Redis and RQ. Job types include PDF annotate, sensitive detection, and structure extraction. Clients poll `GET /v1/jobs/<job_id>` or receive webhook callbacks when `DOCINTEL_WEBHOOK_SECRET` is set.
+Async work uses Redis and RQ. Job types include PDF annotate, sensitive detection, structure extraction, document workflows, and S3 ingest. Clients poll `GET /v1/jobs/<job_id>` or pass `callback_url` for webhook delivery. See [WEBHOOKS.md](WEBHOOKS.md).
 
 Key modules:
 

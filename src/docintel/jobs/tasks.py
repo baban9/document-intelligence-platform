@@ -645,6 +645,45 @@ def run_compare_job(
     )
 
 
+def run_s3_document_process_job(
+    *,
+    job_id: str,
+    bucket: str,
+    key: str,
+    options: dict,
+) -> dict:
+    from docintel.storage.s3_ingest import download_s3_object_to_job_dir
+
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=5,
+        progress_message="Downloading from S3",
+    )
+    try:
+        input_path, filename = download_s3_object_to_job_dir(job_id, bucket, key)
+    except Exception as exc:
+        failed = update_job(
+            job_id,
+            job_status=JobStatus.FAILED.value,
+            progress=100,
+            progress_message="Job failed",
+            error=str(exc),
+        )
+        _notify_webhook(callback_url, failed)
+        raise
+
+    return run_document_process_job(
+        job_id=job_id,
+        input_path=str(input_path),
+        filename=filename,
+        content_type=None,
+        options=options,
+    )
+
+
 def create_queued_job(
     job_id: str,
     *,

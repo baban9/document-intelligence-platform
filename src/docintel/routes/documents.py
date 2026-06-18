@@ -182,11 +182,106 @@ def _parse_process_options() -> tuple[ProcessOptions | None, dict | None, int | 
     )
 
 
+def _parse_process_options_from_dict(
+    payload: dict,
+) -> tuple[ProcessOptions | None, dict | None, int | None]:
+    raw_sentences = payload.get("sentences", DEFAULT_SENTENCE_COUNT)
+    try:
+        sentences = int(raw_sentences)
+    except (TypeError, ValueError):
+        return None, {"error": "Field 'sentences' must be an integer."}, 400
+    if sentences < 1 or sentences > MAX_SENTENCE_COUNT:
+        return None, {
+            "error": f"Field 'sentences' must be between 1 and {MAX_SENTENCE_COUNT}."
+        }, 400
+
+    vertical = payload.get("vertical", "")
+    vertical = vertical.strip() if isinstance(vertical, str) else ""
+    entities_raw = payload.get("entities")
+    try:
+        entities = _resolve_entities(
+            entities_raw if isinstance(entities_raw, str) else None,
+            vertical or None,
+        )
+    except ValueError as exc:
+        return None, {"error": str(exc)}, 400
+
+    raw_min_score = payload.get("min_score", 0.35)
+    try:
+        min_score = float(raw_min_score)
+    except (TypeError, ValueError):
+        return None, {"error": "Field 'min_score' must be a number."}, 400
+
+    def _bool_value(name: str, default: bool) -> bool:
+        if name not in payload:
+            return default
+        value = payload[name]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return default
+
+    return (
+        ProcessOptions(
+            sentences=sentences,
+            include_summarize=_bool_value("include_summarize", True),
+            include_pii=_bool_value("include_pii", True),
+            include_text=_bool_value("include_text", False),
+            entities=entities,
+            min_score=min_score,
+        ),
+        None,
+        None,
+    )
+
+
 @documents_bp.get("/types")
 @limiter.limit("120 per hour")
 def supported_document_types():
     """List supported MIME types, extensions, and capabilities."""
     return jsonify({"status": "ok", "types": list_supported_types()})
+
+
+@documents_bp.post("/ingest")
+@limiter.limit("20 per hour")
+def ingest_document():
+    """Queue unified document processing for an object already stored in S3."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Request body must be JSON."}), 400
+
+    operation = str(payload.get("operation", "process")).strip().lower()
+    if operation != "process":
+        return jsonify({"error": "Only operation 'process' is supported."}), 400
+
+    from docintel.storage.s3_ingest import resolve_s3_location
+
+    try:
+        bucket, key = resolve_s3_location(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    options, option_error, option_status = _parse_process_options_from_dict(payload)
+    if option_error is not None:
+        return jsonify(option_error), option_status
+
+    callback_raw = payload.get("callback_url", "")
+    callback_url = callback_raw.strip() if isinstance(callback_raw, str) and callback_raw.strip() else None
+
+    from docintel.jobs.models import JobType
+    from docintel.jobs.queue import enqueue_s3_document_process_job
+
+    job_id = uuid.uuid4().hex[:12]
+    return enqueue_background_job(
+        job_type=JobType.DOCUMENT_S3_PROCESS,
+        callback_url=callback_url,
+        enqueue_fn=enqueue_s3_document_process_job,
+        job_id=job_id,
+        bucket=bucket,
+        key=key,
+        options=options.to_dict() if options else {},
+    )
 
 
 @documents_bp.post("/identify")

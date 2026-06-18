@@ -58,7 +58,7 @@ report = client.process_document("policy.docx", include_pii=True)
 | PDF annotate | `POST /v1/pdf/annotate` | Regex highlight, redact, markup |
 | PDF PII scan | `POST /v1/pdf/detect-sensitive` | Presidio + OCR for scanned PDFs |
 | PDF structure | `POST /v1/pdf/structure` | OCR + LLM curated PDF (needs LLM key) |
-| Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process** |
+| Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process**, **ingest** (S3) |
 | Text | `POST /v1/text/summarize` | TextRank extractive summary |
 | Batch | `POST /v1/batch` | Async summarize, classify, detect_pii, process |
 | Jobs | `GET /v1/jobs/{id}` | Poll async work (`?async=true`; default in Docker when Redis is up) |
@@ -116,6 +116,7 @@ Copy `.env.example` to `.env` for `DOCINTEL_LLM_API_KEY`, auth keys, Redis, and 
 | [docs/PLATFORM.md](docs/PLATFORM.md) | Jobs, auth, storage, ops layout |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Checklist, latency, failure modes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones and history |
+| [docs/WEBHOOKS.md](docs/WEBHOOKS.md) | Async callbacks and S3 ingest |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 
 ---

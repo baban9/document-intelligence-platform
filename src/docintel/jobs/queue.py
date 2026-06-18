@@ -270,6 +270,25 @@ def enqueue_extract_text_job(
     )
 
 
+def enqueue_s3_document_process_job(
+    job_id: str,
+    bucket: str,
+    key: str,
+    options: dict,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_s3_document_process_job",
+        job_id=job_id,
+        bucket=bucket,
+        key=key,
+        options=options,
+        job_timeout=900,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
 def enqueue_compare_job(
     job_id: str,
     *,

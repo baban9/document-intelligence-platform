@@ -35,6 +35,7 @@ class JobType(str, Enum):
     DOCUMENT_DETECT_PII = "document_detect_pii"
     DOCUMENT_EXTRACT_TEXT = "document_extract_text"
     DOCUMENT_COMPARE = "document_compare"
+    DOCUMENT_S3_PROCESS = "document_s3_process"
     BATCH = "batch"
 
 

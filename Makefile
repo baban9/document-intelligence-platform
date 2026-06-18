@@ -47,10 +47,8 @@ eval:
 build-dist:
 	$(PYTHON) -m build
 
-publish-pypi:
-	rm -rf dist
-	$(PYTHON) -m build
-	TWINE_USERNAME=__token__ TWINE_PASSWORD=$${PYPI_API_TOKEN:-$${TWINE_PASSWORD}} $(PYTHON) -m twine upload dist/* --non-interactive
+publish-pypi: build-dist
+	$(PYTHON) -m twine upload dist/*
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

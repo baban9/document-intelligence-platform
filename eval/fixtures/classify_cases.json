@@ -1,0 +1,17 @@
+[
+  {
+    "name": "legal_contract",
+    "text": "Master service agreement between the parties. This contract defines jurisdiction and liability clauses.",
+    "expected_category": "legal"
+  },
+  {
+    "name": "finance_invoice",
+    "text": "Invoice for payment due on account balance. Tax and revenue totals are listed on the ledger.",
+    "expected_category": "finance"
+  },
+  {
+    "name": "security_incident",
+    "text": "Security incident report describing a breach, malware detection, and access control audit findings.",
+    "expected_category": "security"
+  }
+]

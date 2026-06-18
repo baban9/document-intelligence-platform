@@ -1,0 +1,26 @@
+[
+  {
+    "name": "legal_pipeline_no_pii",
+    "text": "Master service agreement between the parties. This contract defines jurisdiction and liability clauses for both sides.",
+    "options": {
+      "sentences": 2,
+      "include_summarize": true,
+      "include_pii": false,
+      "include_text": false
+    },
+    "expected_category": "legal",
+    "min_summary_sentences": 1
+  },
+  {
+    "name": "finance_pipeline_no_pii",
+    "text": "Quarterly invoice summary with payment totals, tax lines, and account balance adjustments on the ledger.",
+    "options": {
+      "sentences": 2,
+      "include_summarize": true,
+      "include_pii": false,
+      "include_text": true
+    },
+    "expected_category": "finance",
+    "min_summary_sentences": 1
+  }
+]

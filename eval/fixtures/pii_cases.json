@@ -1,0 +1,16 @@
+[
+  {
+    "name": "email_address",
+    "text": "Please contact john.doe@example.com for billing questions about invoice 1001.",
+    "entities": ["EMAIL_ADDRESS"],
+    "min_findings": 1,
+    "expected_entity_types": ["EMAIL_ADDRESS"]
+  },
+  {
+    "name": "phone_number",
+    "text": "Call us at 415-555-0199 if you have questions about your account.",
+    "entities": ["PHONE_NUMBER"],
+    "min_findings": 1,
+    "expected_entity_types": ["PHONE_NUMBER"]
+  }
+]

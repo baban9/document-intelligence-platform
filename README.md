@@ -7,7 +7,7 @@
 
 Enterprise document intelligence API: PDF compliance (OCR, PII, redaction), LLM structuring, and multi-format text workflows (Word, Excel, CSV, plain text).
 
-**Version:** 1.1.0 | **PyPI:** [docintel-platform](https://pypi.org/project/docintel-platform/)
+**Version:** 1.2.0 | **PyPI:** [docintel-platform](https://pypi.org/project/docintel-platform/)
 
 ---
 
@@ -28,6 +28,8 @@ make docker-up
 | Interactive API docs | http://127.0.0.1:5000/docs |
 | Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
+
+Gradio includes a **Document process** tab (unified pipeline). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
 
 **pip install:**
 
@@ -59,7 +61,7 @@ report = client.process_document("policy.docx", include_pii=True)
 | Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process** |
 | Text | `POST /v1/text/summarize` | TextRank extractive summary |
 | Batch | `POST /v1/batch` | Async summarize, classify, detect_pii, process |
-| Jobs | `GET /v1/jobs/{id}` | Poll async work (`?async=true` on PDF and process routes) |
+| Jobs | `GET /v1/jobs/{id}` | Poll async work (`?async=true`; default in Docker when Redis is up) |
 | Ops | `GET /health`, `GET /metrics` | Health and Prometheus-friendly metrics |
 
 **Supported uploads (text workflows):** PDF, DOCX, XLSX, CSV, JSON, TXT, MD.
@@ -99,6 +101,7 @@ make run                # API on :5000
 make run-worker         # RQ worker (separate terminal, needs Redis)
 make run-ui             # Gradio on :7860
 make test
+make eval               # offline quality report (summary, classify, process, PII)
 ```
 
 Copy `.env.example` to `.env` for `DOCINTEL_LLM_API_KEY`, auth keys, Redis, and S3. See comments in that file for all variables.

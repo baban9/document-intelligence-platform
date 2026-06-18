@@ -39,7 +39,7 @@ Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `m
 | Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
 
-Gradio includes a **Document process** tab (unified pipeline). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
+Gradio includes a **Document process** tab (unified pipeline) and a **Document integrity** tab (gap and consistency checks). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
 
 **pip install:**
 
@@ -113,12 +113,15 @@ make setup-hooks        # block Cursor agent co-author trailers on commit
 make setup-ocr          # EasyOCR, Presidio, spaCy model
 make setup-llm          # OpenAI client (structure endpoint)
 make setup-ui           # Gradio
+make run-redis          # Redis for async jobs (Docker, port 6379)
 make run                # API on :5000
 make run-worker         # RQ worker (separate terminal, needs Redis)
 make run-ui             # Gradio on :7860
 make test
 make eval               # offline quality report (summary, classify, process, PII)
 ```
+
+Async routes and the Gradio integrity tab need Redis. Start it once with `make run-redis` before `make run-worker`.
 
 Copy `.env.example` to `.env` for `DOCINTEL_LLM_API_KEY`, auth keys, Redis, and S3. See comments in that file for all variables.
 

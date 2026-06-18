@@ -11,6 +11,8 @@ from typing import Any
 
 import requests
 
+from docintel.services.integrity import V1_CHECKS
+
 API_BASE = os.getenv("DOCINTEL_API_URL", "http://127.0.0.1:5000").rstrip("/")
 API_KEY = os.getenv("DOCINTEL_API_KEY", "")
 
@@ -336,6 +338,86 @@ def detect_pii_document_ui(upload_file: Any) -> str:
     return _post_document_file("/v1/documents/detect-pii", path)
 
 
+def format_integrity_summary(result: dict[str, Any]) -> str:
+    summary = result.get("summary") or {}
+    by_severity = summary.get("by_severity") or {}
+    by_category = summary.get("by_category") or {}
+    lines = [
+        f"Finding count: {result.get('finding_count', 0)}",
+        f"Checks run: {', '.join(result.get('checks_run') or [])}",
+        f"By severity: {json.dumps(by_severity, sort_keys=True)}",
+        f"By category: {json.dumps(by_category, sort_keys=True)}",
+    ]
+    return "\n".join(lines)
+
+
+def format_integrity_findings_table(result: dict[str, Any]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for finding in result.get("findings") or []:
+        evidence = finding.get("evidence") or []
+        quote = ""
+        if evidence and isinstance(evidence[0], dict):
+            quote = str(evidence[0].get("quote", ""))
+        rows.append(
+            [
+                str(finding.get("severity", "")),
+                str(finding.get("category", "")),
+                str(finding.get("description", "")),
+                quote,
+                str(finding.get("suggested_fix", "") or ""),
+            ]
+        )
+    return rows
+
+
+def _parse_integrity_result(formatted: str) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        payload = json.loads(formatted)
+    except json.JSONDecodeError:
+        return None, formatted
+    if not isinstance(payload, dict):
+        return None, "Unexpected integrity response."
+    if payload.get("error"):
+        return None, str(payload["error"])
+    if payload.get("findings") is None and payload.get("finding_count") is None:
+        return None, formatted
+    return payload, None
+
+
+def analyze_document_integrity_ui(
+    upload_file: Any,
+    source_text: str,
+    selected_checks: list[str],
+) -> tuple[str, list[list[str]]]:
+    """Run document integrity analysis on an upload or pasted text."""
+    path = resolve_upload_path(upload_file)
+    text = source_text.strip()
+    if path is None and not text:
+        return "Upload a document or paste text to analyze.", []
+
+    data: dict[str, str] = {}
+    if selected_checks:
+        data["checks"] = ",".join(selected_checks)
+
+    if path is not None:
+        formatted = _post_document_file("/v1/documents/analyze-integrity", path, data=data or None)
+    else:
+        url = f"{API_BASE}/v1/documents/analyze-integrity?async=true"
+        response = requests.post(
+            url,
+            json={"text": text, **({"checks": selected_checks} if selected_checks else {})},
+            headers=_api_headers(),
+            timeout=120,
+        )
+        formatted = _format_json_response(response)
+
+    result, error = _parse_integrity_result(formatted)
+    if error:
+        return error, []
+    assert result is not None
+    return format_integrity_summary(result), format_integrity_findings_table(result)
+
+
 def format_process_result_for_display(result: dict[str, Any]) -> dict[str, Any]:
     """Trim large text fields for Gradio output."""
     display = dict(result)
@@ -558,6 +640,37 @@ def build_ui():
                     process_entities,
                 ],
                 outputs=process_output,
+            )
+
+        with gr.Tab("Document integrity"):
+            gr.Markdown(
+                "Detect placeholders, broken cross-references, naming drift, labeled number "
+                "mismatches, and thin section structure. Uses async jobs when Redis is available."
+            )
+            with gr.Row():
+                integrity_file = gr.File(label="Document upload", file_types=office_types)
+                integrity_checks = gr.CheckboxGroup(
+                    list(V1_CHECKS),
+                    value=list(V1_CHECKS),
+                    label="Checks to run",
+                )
+            integrity_text = gr.Textbox(
+                label="Or paste text",
+                lines=8,
+                placeholder="Paste policy or contract text if you are not uploading a file.",
+            )
+            integrity_btn = gr.Button("Analyze integrity", variant="primary")
+            integrity_summary = gr.Textbox(label="Summary", lines=5)
+            integrity_table = gr.Dataframe(
+                headers=["Severity", "Category", "Description", "Evidence", "Suggested fix"],
+                label="Findings",
+                interactive=False,
+            )
+
+            integrity_btn.click(
+                analyze_document_integrity_ui,
+                inputs=[integrity_file, integrity_text, integrity_checks],
+                outputs=[integrity_summary, integrity_table],
             )
 
         with gr.Tab("Document tools"):

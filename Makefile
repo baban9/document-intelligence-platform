@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install run run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -40,6 +40,9 @@ install:
 
 run:
 	$(PYTHON) run.py
+
+run-redis:
+	$(COMPOSE) up -d redis
 
 run-worker:
 	$(PYTHON) run_worker.py

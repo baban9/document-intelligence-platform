@@ -1,14 +1,21 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
 PYTEST := .venv/bin/pytest
 COMPOSE := docker compose
+export PYTHONPATH := $(CURDIR)/src
 
 setup:
 	python3 -m venv .venv
-	$(PIP) install --upgrade pip
+	$(PIP) install --upgrade pip setuptools wheel
 	$(PIP) install -e ".[dev]"
+	$(MAKE) fix-editable-pth
+
+fix-editable-pth:
+	@for pth in .venv/lib/python*/site-packages/__editable__*.pth; do \
+		if [ -f "$$pth" ]; then chflags nohidden "$$pth" 2>/dev/null || true; fi; \
+	done
 
 setup-hooks:
 	git config core.hooksPath .githooks
@@ -37,6 +44,7 @@ setup-ui:
 
 install:
 	$(PIP) install -e ".[dev]"
+	$(MAKE) fix-editable-pth
 
 run:
 	$(PYTHON) run.py

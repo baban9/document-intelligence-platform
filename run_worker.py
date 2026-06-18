@@ -6,11 +6,22 @@ from __future__ import annotations
 import os
 import sys
 
+# macOS + PyTorch/EasyOCR: forked RQ work horses crash if Metal/MPS was initialized.
+if sys.platform == "darwin":
+    os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
+
 from redis import Redis
-from rq import Queue, Worker
+from rq import Queue, SimpleWorker, Worker
 
 from docintel.jobs.queue import QUEUE_NAME
 from docintel.jobs.store import redis_url
+
+
+def _worker_class():
+    # SimpleWorker runs jobs in-process (no fork). Required for OCR jobs on macOS.
+    if sys.platform == "darwin":
+        return SimpleWorker
+    return Worker
 
 
 def main() -> None:
@@ -20,8 +31,10 @@ def main() -> None:
 
     connection = Redis.from_url(redis_url())
     queue = Queue(QUEUE_NAME, connection=connection)
-    worker = Worker([queue], connection=connection)
-    print(f"RQ worker listening on queue '{QUEUE_NAME}' ({redis_url()})")
+    worker_cls = _worker_class()
+    worker = worker_cls([queue], connection=connection)
+    mode = "in-process (macOS OCR-safe)" if worker_cls is SimpleWorker else "forked"
+    print(f"RQ worker listening on queue '{QUEUE_NAME}' ({redis_url()}), mode={mode}")
     worker.work(with_scheduler=False)
 
 

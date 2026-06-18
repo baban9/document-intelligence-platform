@@ -36,7 +36,7 @@ Gradio includes a **Document process** tab (unified pipeline). It needs the API 
 ```bash
 pip install docintel-platform
 pip install "docintel-platform[all]"        # OCR, LLM, jobs, auth, UI, office formats
-pip install "docintel-platform[documents]"  # Word and Excel only
+pip install "docintel-platform[documents]"  # Word, Excel, and PowerPoint
 ```
 
 **Python client:**
@@ -64,7 +64,7 @@ report = client.process_document("policy.docx", include_pii=True)
 | Jobs | `GET /v1/jobs/{id}` | Poll async work (`?async=true`; default in Docker when Redis is up) |
 | Ops | `GET /health`, `GET /metrics` | Health and Prometheus-friendly metrics |
 
-**Supported uploads (text workflows):** PDF, DOCX, XLSX, CSV, JSON, TXT, MD.
+**Supported uploads (text workflows):** PDF, DOCX, XLSX, PPTX, CSV, JSON, TXT, MD.
 
 **PDF-only routes** (annotate, sensitive, structure) return HTTP 415 for other types. Use `/v1/documents/extract-text` or `/v1/documents/process` for office files.
 

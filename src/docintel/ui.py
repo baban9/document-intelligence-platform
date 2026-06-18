@@ -516,7 +516,7 @@ def build_ui():
                 outputs=summary_output,
             )
 
-        office_types = [".pdf", ".docx", ".xlsx", ".csv", ".txt", ".md", ".json"]
+        office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
         with gr.Tab("Document process"):
             gr.Markdown(
                 "Run extract, classify, summarize, and PII detection in one async job. "

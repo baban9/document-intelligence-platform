@@ -57,6 +57,19 @@ def sample_xlsx(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def sample_pptx(tmp_path: Path) -> Path:
+    pptx = pytest.importorskip("pptx")
+    path = tmp_path / "review.pptx"
+    presentation = pptx.Presentation()
+    slide_layout = presentation.slide_layouts[1]
+    slide = presentation.slides.add_slide(slide_layout)
+    slide.shapes.title.text = "Quarterly finance review"
+    slide.placeholders[1].text = "Revenue, payment totals, and ledger balances."
+    presentation.save(path)
+    return path
+
+
+@pytest.fixture
 def fake_docx_extension(tmp_path: Path) -> Path:
     """A zip file with a .docx extension but non-word contents."""
     path = tmp_path / "fake.docx"
@@ -69,7 +82,7 @@ def fake_docx_extension(tmp_path: Path) -> Path:
 
 def test_list_supported_types_includes_office_formats():
     kinds = {item["kind"] for item in list_supported_types()}
-    assert {"pdf", "docx", "xlsx", "csv", "plain_text", "json"}.issubset(kinds)
+    assert {"pdf", "docx", "xlsx", "pptx", "csv", "plain_text", "json"}.issubset(kinds)
 
 
 def test_identify_csv_by_content(sample_csv: Path):
@@ -106,6 +119,19 @@ def test_extract_text_from_xlsx(sample_xlsx: Path):
     assert result.metadata["sheet_count"] == 1
 
 
+def test_identify_pptx_by_zip_signature(sample_pptx: Path):
+    result = identify_document(sample_pptx)
+    assert result.kind is DocumentKind.PPTX
+    assert result.detected_by == "content"
+
+
+def test_extract_text_from_pptx(sample_pptx: Path):
+    result = extract_document_text(sample_pptx)
+    assert "Quarterly finance review" in result.text
+    assert "ledger balances" in result.text
+    assert result.metadata["slide_count"] == 1
+
+
 def test_types_route_lists_formats():
     app = create_app()
     with app.test_client() as client:
@@ -114,6 +140,7 @@ def test_types_route_lists_formats():
     assert response.status_code == 200
     assert payload["status"] == "ok"
     assert any(item["kind"] == "xlsx" for item in payload["types"])
+    assert any(item["kind"] == "pptx" for item in payload["types"])
 
 
 def test_identify_route(sample_txt: Path):

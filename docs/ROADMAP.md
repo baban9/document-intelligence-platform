@@ -145,6 +145,19 @@ Document architecture tradeoffs and production readiness checklist
 
 ---
 
+## Milestone 13: PowerPoint support
+
+**Issue title:** `M13: Add PowerPoint text extraction and identification`  
+**Status:** Done
+
+**Deliverables:**
+- PPTX sniffing via Open XML `ppt/` package signature
+- Text extraction from slide titles and shapes (`python-pptx`)
+- Included in `[documents]` optional dependency
+- Gradio upload filters and `/v1/documents/types` updated
+
+---
+
 ## Legacy code sources
 
 | Feature | Legacy source |

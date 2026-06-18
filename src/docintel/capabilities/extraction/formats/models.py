@@ -11,6 +11,7 @@ class DocumentKind(str, Enum):
     PDF = "pdf"
     DOCX = "docx"
     XLSX = "xlsx"
+    PPTX = "pptx"
     CSV = "csv"
     PLAIN_TEXT = "plain_text"
     JSON = "json"

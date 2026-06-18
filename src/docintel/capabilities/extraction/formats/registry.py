@@ -32,6 +32,14 @@ _PROFILES: tuple[DocumentProfile, ...] = (
         supports_text_extraction=True,
     ),
     DocumentProfile(
+        kind=DocumentKind.PPTX,
+        mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        extensions=(".pptx",),
+        label="PowerPoint presentation",
+        supports_pdf_pipeline=False,
+        supports_text_extraction=True,
+    ),
+    DocumentProfile(
         kind=DocumentKind.CSV,
         mime_type="text/csv",
         extensions=(".csv",),

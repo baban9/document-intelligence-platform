@@ -39,6 +39,8 @@ def extract_document_text(
         return _extract_docx(file_path, resolved)
     if resolved.kind is DocumentKind.XLSX:
         return _extract_xlsx(file_path, resolved)
+    if resolved.kind is DocumentKind.PPTX:
+        return _extract_pptx(file_path, resolved)
     if resolved.kind is DocumentKind.CSV:
         return _extract_csv(file_path, resolved)
     if resolved.kind is DocumentKind.JSON:
@@ -126,6 +128,37 @@ def _extract_xlsx(path: Path, identification: IdentificationResult) -> Extractio
         text="\n\n".join(parts),
         segments=segments,
         metadata={"sheet_count": len(segments)},
+    )
+
+
+def _extract_pptx(path: Path, identification: IdentificationResult) -> ExtractionResult:
+    try:
+        from pptx import Presentation
+    except ImportError as exc:
+        raise RuntimeError(
+            "PowerPoint support requires optional dependencies. Install: pip install -e '.[documents]'"
+        ) from exc
+
+    presentation = Presentation(path)
+    segments: list[dict] = []
+    parts: list[str] = []
+    for slide_index, slide in enumerate(presentation.slides, start=1):
+        slide_parts: list[str] = []
+        for shape in slide.shapes:
+            text = getattr(shape, "text", "").strip()
+            if text:
+                slide_parts.append(text)
+        slide_text = "\n".join(slide_parts)
+        segments.append({"slide": slide_index, "text": slide_text})
+        if slide_text:
+            parts.append(f"# Slide {slide_index}\n{slide_text}")
+
+    return ExtractionResult(
+        kind=identification.kind,
+        mime_type=identification.mime_type,
+        text="\n\n".join(parts),
+        segments=segments,
+        metadata={"slide_count": len(presentation.slides)},
     )
 
 

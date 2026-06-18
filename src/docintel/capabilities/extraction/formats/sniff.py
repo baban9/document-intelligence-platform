@@ -31,6 +31,8 @@ def _sniff_zip_kind(path: Path) -> DocumentKind | None:
 
     if any(name.startswith("word/") for name in names):
         return DocumentKind.DOCX
+    if any(name.startswith("ppt/") for name in names):
+        return DocumentKind.PPTX
     if any(name.startswith("xl/") for name in names):
         return DocumentKind.XLSX
     return None
@@ -80,7 +82,7 @@ def _looks_like_csv(sample: str) -> bool:
 
 
 def _requires_content_confirmation(kind: DocumentKind) -> bool:
-    return kind in {DocumentKind.PDF, DocumentKind.DOCX, DocumentKind.XLSX}
+    return kind in {DocumentKind.PDF, DocumentKind.DOCX, DocumentKind.XLSX, DocumentKind.PPTX}
 
 
 def _build_result(

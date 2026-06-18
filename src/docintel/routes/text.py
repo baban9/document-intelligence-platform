@@ -1,12 +1,23 @@
 """Text summarization API routes."""
 
+from __future__ import annotations
+
 from flask import Blueprint, jsonify, request
 
 from docintel.auth.limiter import limiter
+from docintel.routes.async_enqueue import enqueue_background_job
+from docintel.routes.document_upload import parse_async_flag
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
 
 text_bp = Blueprint("text", __name__, url_prefix="/v1/text")
+
+
+def _callback_url(payload: dict) -> str | None:
+    raw = payload.get("callback_url", "")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
 
 
 @text_bp.post("/summarize")
@@ -32,6 +43,18 @@ def summarize():
         return jsonify(
             {"error": f"Field 'sentences' must be between 1 and {MAX_SENTENCE_COUNT}."}
         ), 400
+
+    if parse_async_flag():
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_summarize_job
+
+        return enqueue_background_job(
+            job_type=JobType.TEXT_SUMMARIZE,
+            callback_url=_callback_url(payload),
+            enqueue_fn=enqueue_summarize_job,
+            text=text,
+            sentences=sentences,
+        )
 
     try:
         result = summarize_text(text=text, sentence_count=sentences)

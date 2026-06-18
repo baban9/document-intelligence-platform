@@ -21,8 +21,17 @@ from docintel.services.pdf.pii import detect_pii_in_text
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
 from docintel.routes.document_upload import job_dir, parse_async_flag, read_upload, save_upload
+from docintel.routes.async_enqueue import enqueue_background_job
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/v1/documents")
+
+
+def _callback_url() -> str | None:
+    payload = request.get_json(silent=True) or {}
+    raw = payload.get("callback_url", request.form.get("callback_url", ""))
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
 
 
 def _text_from_request(field_name: str = "text") -> str | None:
@@ -201,6 +210,22 @@ def extract_text_upload():
     if upload is None:
         return jsonify({"error": "Missing file in form field 'file'."}), 400
 
+    if parse_async_flag():
+        job_id = uuid.uuid4().hex[:12]
+        saved = save_upload(upload, job_dir(job_id))
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_extract_text_job
+
+        return enqueue_background_job(
+            job_type=JobType.DOCUMENT_EXTRACT_TEXT,
+            callback_url=_callback_url(),
+            enqueue_fn=enqueue_extract_text_job,
+            job_id=job_id,
+            input_path=str(saved.path),
+            filename=saved.filename,
+            content_type=saved.content_type,
+        )
+
     with tempfile.TemporaryDirectory(prefix="docintel-extract-") as temp_dir:
         saved = save_upload(upload, Path(temp_dir))
         try:
@@ -230,7 +255,7 @@ def process_upload():
     if option_error is not None:
         return jsonify(option_error), option_status
 
-    callback_url = request.form.get("callback_url", "").strip() or None
+    callback_url = _callback_url()
     run_async = parse_async_flag()
 
     if run_async:
@@ -274,32 +299,56 @@ def _enqueue_document_process_job(
     options: dict,
     callback_url: str | None,
 ):
-    from docintel.jobs.helpers import enqueue_async_response
     from docintel.jobs.models import JobType
     from docintel.jobs.queue import enqueue_document_process_job
 
-    accepted = enqueue_async_response(
-        job_id=job_id,
+    return enqueue_background_job(
         job_type=JobType.DOCUMENT_PROCESS,
         callback_url=callback_url,
-    )
-    if accepted[1] != 202:
-        return accepted
-
-    enqueue_document_process_job(
+        enqueue_fn=enqueue_document_process_job,
         job_id=job_id,
         input_path=str(input_path),
         filename=filename,
         content_type=content_type,
         options=options,
     )
-    return accepted
 
 
 @documents_bp.post("/classify")
 @limiter.limit("120 per hour")
 def classify_document():
     """Classify text or an uploaded document into enterprise function categories."""
+    run_async = parse_async_flag()
+    callback_url = _callback_url()
+    upload = read_upload(request, "file")
+
+    if run_async:
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_classify_document_job, enqueue_classify_job
+
+        if upload is not None:
+            job_id = uuid.uuid4().hex[:12]
+            saved = save_upload(upload, job_dir(job_id))
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_CLASSIFY,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_classify_document_job,
+                job_id=job_id,
+                input_path=str(saved.path),
+                filename=saved.filename,
+                content_type=saved.content_type,
+            )
+
+        text = _text_from_request("text")
+        if text is None:
+            return jsonify({"error": "Provide JSON/form field 'text' or upload a file."}), 400
+        return enqueue_background_job(
+            job_type=JobType.TEXT_CLASSIFY,
+            callback_url=callback_url,
+            enqueue_fn=enqueue_classify_job,
+            text=text,
+        )
+
     text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
     if error_payload is not None:
         return jsonify(error_payload), status_code
@@ -316,6 +365,43 @@ def classify_document():
 @limiter.limit("100 per hour")
 def summarize_document():
     """Summarize text or an uploaded document using extractive TextRank."""
+    run_async = parse_async_flag()
+    callback_url = _callback_url()
+    upload = read_upload(request, "file")
+
+    sentences, sentence_error, sentence_status = _parse_sentence_count()
+    if sentence_error is not None:
+        return jsonify(sentence_error), sentence_status
+
+    if run_async:
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_summarize_document_job, enqueue_summarize_job
+
+        if upload is not None:
+            job_id = uuid.uuid4().hex[:12]
+            saved = save_upload(upload, job_dir(job_id))
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_SUMMARIZE,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_summarize_document_job,
+                job_id=job_id,
+                input_path=str(saved.path),
+                filename=saved.filename,
+                content_type=saved.content_type,
+                sentences=sentences or DEFAULT_SENTENCE_COUNT,
+            )
+
+        text = _text_from_request("text")
+        if text is None:
+            return jsonify({"error": "Provide JSON/form field 'text' or upload a file."}), 400
+        return enqueue_background_job(
+            job_type=JobType.TEXT_SUMMARIZE,
+            callback_url=callback_url,
+            enqueue_fn=enqueue_summarize_job,
+            text=text,
+            sentences=sentences or DEFAULT_SENTENCE_COUNT,
+        )
+
     text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
     if error_payload is not None:
         return jsonify(error_payload), status_code
@@ -336,6 +422,57 @@ def summarize_document():
 @limiter.limit("60 per hour")
 def detect_pii_document():
     """Detect Presidio PII in text or an uploaded document without PDF annotation."""
+    run_async = parse_async_flag()
+    callback_url = _callback_url()
+    upload = read_upload(request, "file")
+
+    payload = request.get_json(silent=True) or {}
+    vertical = payload.get("vertical", request.form.get("vertical", ""))
+    vertical = vertical.strip() if isinstance(vertical, str) else ""
+    entities_raw = payload.get("entities", request.form.get("entities"))
+    try:
+        entities = _resolve_entities(
+            entities_raw if isinstance(entities_raw, str) else None,
+            vertical or None,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    min_score, min_score_error, min_score_status = _parse_min_score()
+    if min_score_error is not None:
+        return jsonify(min_score_error), min_score_status
+
+    if run_async:
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_detect_pii_document_job, enqueue_detect_pii_text_job
+
+        if upload is not None:
+            job_id = uuid.uuid4().hex[:12]
+            saved = save_upload(upload, job_dir(job_id))
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_DETECT_PII,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_detect_pii_document_job,
+                job_id=job_id,
+                input_path=str(saved.path),
+                filename=saved.filename,
+                content_type=saved.content_type,
+                entities=entities,
+                min_score=min_score or 0.35,
+            )
+
+        text = _text_from_request("text")
+        if text is None:
+            return jsonify({"error": "Provide JSON/form field 'text' or upload a file."}), 400
+        return enqueue_background_job(
+            job_type=JobType.TEXT_DETECT_PII,
+            callback_url=callback_url,
+            enqueue_fn=enqueue_detect_pii_text_job,
+            text=text,
+            entities=entities,
+            min_score=min_score or 0.35,
+        )
+
     text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
     if error_payload is not None:
         return jsonify(error_payload), status_code
@@ -375,6 +512,50 @@ def detect_pii_document():
 @limiter.limit("120 per hour")
 def compare_documents():
     """Compare two policy or contract texts for overlap."""
+    run_async = parse_async_flag()
+    callback_url = _callback_url()
+
+    if run_async:
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_compare_job
+
+        upload_a = read_upload(request, "file_a")
+        upload_b = read_upload(request, "file_b")
+        if upload_a is not None or upload_b is not None:
+            if upload_a is None or upload_b is None:
+                return jsonify({"error": "Provide both file_a and file_b for file comparison."}), 400
+            job_id = uuid.uuid4().hex[:12]
+            work_dir = job_dir(job_id)
+            saved_a = save_upload(upload_a, work_dir)
+            saved_b = save_upload(upload_b, work_dir)
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_COMPARE,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_compare_job,
+                job_id=job_id,
+                path_a=str(saved_a.path),
+                path_b=str(saved_b.path),
+                filename_a=saved_a.filename,
+                filename_b=saved_b.filename,
+                content_type_a=saved_a.content_type,
+                content_type_b=saved_b.content_type,
+            )
+
+        payload = request.get_json(silent=True) or {}
+        text_a = payload.get("text_a", request.form.get("text_a", ""))
+        text_b = payload.get("text_b", request.form.get("text_b", ""))
+        if not isinstance(text_a, str) or not text_a.strip():
+            return jsonify({"error": "Provide text_a/file_a for the first document."}), 400
+        if not isinstance(text_b, str) or not text_b.strip():
+            return jsonify({"error": "Provide text_b/file_b for the second document."}), 400
+        return enqueue_background_job(
+            job_type=JobType.DOCUMENT_COMPARE,
+            callback_url=callback_url,
+            enqueue_fn=enqueue_compare_job,
+            text_a=text_a,
+            text_b=text_b,
+        )
+
     text_a, error_a, status_a = _resolve_compare_text("text_a", "file_a")
     if error_a is not None:
         return jsonify(error_a), status_a

@@ -30,6 +30,11 @@ class JobType(str, Enum):
     TEXT_CLASSIFY = "text_classify"
     TEXT_DETECT_PII = "text_detect_pii"
     DOCUMENT_PROCESS = "document_process"
+    DOCUMENT_CLASSIFY = "document_classify"
+    DOCUMENT_SUMMARIZE = "document_summarize"
+    DOCUMENT_DETECT_PII = "document_detect_pii"
+    DOCUMENT_EXTRACT_TEXT = "document_extract_text"
+    DOCUMENT_COMPARE = "document_compare"
     BATCH = "batch"
 
 

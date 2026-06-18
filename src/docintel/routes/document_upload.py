@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,8 +61,17 @@ def is_pdf_upload(identification: IdentificationResult) -> bool:
     return identification.kind is DocumentKind.PDF
 
 
+def async_default_enabled() -> bool:
+    from docintel.jobs.store import jobs_enabled
+
+    if not jobs_enabled():
+        return False
+    return os.getenv("DOCINTEL_ASYNC_DEFAULT", "false").strip().lower() == "true"
+
+
 def parse_async_flag() -> bool:
-    raw = request.args.get("async", request.form.get("async", "false"))
+    default = "true" if async_default_enabled() else "false"
+    raw = request.args.get("async", request.form.get("async", default))
     return str(raw).strip().lower() == "true"
 
 

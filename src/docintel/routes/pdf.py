@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from docintel.auth.limiter import limiter
 from docintel.capabilities.extraction.formats import identify_document
-from docintel.routes.document_upload import is_pdf_upload, pdf_required_message, read_upload
+from docintel.routes.document_upload import is_pdf_upload, parse_async_flag, pdf_required_message, read_upload
 from docintel.services.pdf import (
     Action,
     DEFAULT_PII_ENTITIES,
@@ -94,7 +94,7 @@ def annotate():
     output_path = work_dir / f"annotated_{filename}"
 
     callback_url = request.form.get("callback_url", "").strip() or None
-    run_async = _parse_async_flag()
+    run_async = parse_async_flag()
 
     if run_async:
         return _enqueue_annotate_job(
@@ -223,7 +223,7 @@ def detect_sensitive():
         return jsonify({"error": "Field 'min_score' must be a number."}), 400
 
     callback_url = request.form.get("callback_url", "").strip() or None
-    run_async = _parse_async_flag()
+    run_async = parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _job_dir(job_id)
@@ -293,11 +293,6 @@ def detect_sensitive():
     return response
 
 
-def _parse_async_flag() -> bool:
-    raw = request.args.get("async", request.form.get("async", "false"))
-    return str(raw).lower() == "true"
-
-
 @pdf_bp.post("/structure")
 @limiter.limit("20 per hour")
 def structure():
@@ -318,7 +313,7 @@ def structure():
     force_ocr = request.form.get("force_ocr", "false").lower() == "true"
     redact_before_llm = request.form.get("redact_before_llm", "false").lower() == "true"
     callback_url = request.form.get("callback_url", "").strip() or None
-    run_async = _parse_async_flag()
+    run_async = parse_async_flag()
 
     job_id = uuid.uuid4().hex[:12]
     work_dir = _job_dir(job_id)

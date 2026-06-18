@@ -18,6 +18,7 @@ services:
       DOCINTEL_PORT: 5000
       DOCINTEL_LOG_LEVEL: ${DOCINTEL_LOG_LEVEL:-INFO}
       DOCINTEL_REDIS_URL: redis://redis:6379/0
+      DOCINTEL_ASYNC_DEFAULT: ${DOCINTEL_ASYNC_DEFAULT:-true}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
     volumes:
       - docintel_uploads:/app/uploads

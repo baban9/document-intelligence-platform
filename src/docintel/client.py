@@ -164,14 +164,64 @@ class DocintelClient:
             return response.content
         return response.json()
 
-    def summarize(self, text: str, *, sentences: int = 3) -> dict[str, Any]:
+    def _post_async_json(
+        self,
+        path: str,
+        *,
+        json_body: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
+        poll: bool = True,
+    ) -> dict[str, Any]:
         response = self._session.post(
-            self._url("/v1/text/summarize"),
-            json={"text": text, "sentences": sentences},
+            self._url(path),
+            json=json_body,
+            params=params,
             timeout=self.timeout,
         )
+        if response.status_code == 202:
+            payload = response.json()
+            if not poll:
+                return payload
+            completed = self.poll_job(payload["job_id"])
+            result = completed.get("result") or {}
+            return {"status": "ok", **result}
         self._raise_for_status(response)
         return response.json()
+
+    def _post_async_multipart(
+        self,
+        path: str,
+        *,
+        files: dict,
+        data: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        poll: bool = True,
+    ) -> dict[str, Any]:
+        response = self._session.post(
+            self._url(path),
+            params=params,
+            files=files,
+            data=data or {},
+            timeout=self.timeout,
+        )
+        if response.status_code == 202:
+            payload = response.json()
+            if not poll:
+                return payload
+            completed = self.poll_job(payload["job_id"])
+            result = completed.get("result") or {}
+            return {"status": "ok", **result}
+        self._raise_for_status(response)
+        return response.json()
+
+    def summarize(self, text: str, *, sentences: int = 3, async_job: bool = False, poll: bool = True) -> dict[str, Any]:
+        params = {"async": "true"} if async_job else {}
+        return self._post_async_json(
+            "/v1/text/summarize",
+            json_body={"text": text, "sentences": sentences},
+            params=params,
+            poll=poll,
+        )
 
     def list_document_types(self) -> dict[str, Any]:
         response = self._session.get(self._url("/v1/documents/types"), timeout=self.timeout)
@@ -189,16 +239,47 @@ class DocintelClient:
         self._raise_for_status(response)
         return response.json()
 
-    def extract_document_text(self, path: str | Path) -> dict[str, Any]:
+    def extract_document_text(
+        self,
+        path: str | Path,
+        *,
+        async_job: bool = False,
+        poll: bool = True,
+    ) -> dict[str, Any]:
         file_path = Path(path)
+        params = {"async": "true"} if async_job else {}
         with file_path.open("rb") as handle:
-            response = self._session.post(
-                self._url("/v1/documents/extract-text"),
+            return self._post_async_multipart(
+                "/v1/documents/extract-text",
+                params=params,
                 files={"file": (file_path.name, handle, "application/octet-stream")},
-                timeout=self.timeout,
+                poll=poll,
             )
-        self._raise_for_status(response)
-        return response.json()
+
+    def classify_document(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        async_job: bool = False,
+        poll: bool = True,
+    ) -> dict[str, Any]:
+        params = {"async": "true"} if async_job else {}
+        if path is not None:
+            file_path = Path(path)
+            with file_path.open("rb") as handle:
+                return self._post_async_multipart(
+                    "/v1/documents/classify",
+                    params=params,
+                    files={"file": (file_path.name, handle, "application/octet-stream")},
+                    poll=poll,
+                )
+        return self._post_async_json(
+            "/v1/documents/classify",
+            json_body={"text": text or ""},
+            params=params,
+            poll=poll,
+        )
 
     def summarize_document(
         self,
@@ -206,24 +287,26 @@ class DocintelClient:
         *,
         text: str | None = None,
         sentences: int = 3,
+        async_job: bool = False,
+        poll: bool = True,
     ) -> dict[str, Any]:
+        params = {"async": "true"} if async_job else {}
         if path is not None:
             file_path = Path(path)
             with file_path.open("rb") as handle:
-                response = self._session.post(
-                    self._url("/v1/documents/summarize"),
+                return self._post_async_multipart(
+                    "/v1/documents/summarize",
+                    params=params,
                     files={"file": (file_path.name, handle, "application/octet-stream")},
                     data={"sentences": str(sentences)},
-                    timeout=self.timeout,
+                    poll=poll,
                 )
-        else:
-            response = self._session.post(
-                self._url("/v1/documents/summarize"),
-                json={"text": text or "", "sentences": sentences},
-                timeout=self.timeout,
-            )
-        self._raise_for_status(response)
-        return response.json()
+        return self._post_async_json(
+            "/v1/documents/summarize",
+            json_body={"text": text or "", "sentences": sentences},
+            params=params,
+            poll=poll,
+        )
 
     def detect_pii_document(
         self,
@@ -233,34 +316,36 @@ class DocintelClient:
         entities: str | None = None,
         vertical: str | None = None,
         min_score: float = 0.35,
+        async_job: bool = False,
+        poll: bool = True,
     ) -> dict[str, Any]:
-        data = {"min_score": str(min_score)}
-        if entities:
-            data["entities"] = entities
-        if vertical:
-            data["vertical"] = vertical
+        params = {"async": "true"} if async_job else {}
         if path is not None:
             file_path = Path(path)
+            data = {"min_score": str(min_score)}
+            if entities:
+                data["entities"] = entities
+            if vertical:
+                data["vertical"] = vertical
             with file_path.open("rb") as handle:
-                response = self._session.post(
-                    self._url("/v1/documents/detect-pii"),
+                return self._post_async_multipart(
+                    "/v1/documents/detect-pii",
+                    params=params,
                     files={"file": (file_path.name, handle, "application/octet-stream")},
                     data=data,
-                    timeout=self.timeout,
+                    poll=poll,
                 )
-        else:
-            payload = {"text": text or "", "min_score": min_score}
-            if entities:
-                payload["entities"] = entities
-            if vertical:
-                payload["vertical"] = vertical
-            response = self._session.post(
-                self._url("/v1/documents/detect-pii"),
-                json=payload,
-                timeout=self.timeout,
-            )
-        self._raise_for_status(response)
-        return response.json()
+        payload: dict[str, Any] = {"text": text or "", "min_score": min_score}
+        if entities:
+            payload["entities"] = entities
+        if vertical:
+            payload["vertical"] = vertical
+        return self._post_async_json(
+            "/v1/documents/detect-pii",
+            json_body=payload,
+            params=params,
+            poll=poll,
+        )
 
     def compare_documents(
         self,
@@ -269,27 +354,29 @@ class DocintelClient:
         text_b: str | None = None,
         path_a: str | Path | None = None,
         path_b: str | Path | None = None,
+        async_job: bool = False,
+        poll: bool = True,
     ) -> dict[str, Any]:
+        params = {"async": "true"} if async_job else {}
         if path_a is not None and path_b is not None:
             file_a = Path(path_a)
             file_b = Path(path_b)
             with file_a.open("rb") as handle_a, file_b.open("rb") as handle_b:
-                response = self._session.post(
-                    self._url("/v1/documents/compare"),
+                return self._post_async_multipart(
+                    "/v1/documents/compare",
+                    params=params,
                     files={
                         "file_a": (file_a.name, handle_a, "application/octet-stream"),
                         "file_b": (file_b.name, handle_b, "application/octet-stream"),
                     },
-                    timeout=self.timeout,
+                    poll=poll,
                 )
-        else:
-            response = self._session.post(
-                self._url("/v1/documents/compare"),
-                json={"text_a": text_a or "", "text_b": text_b or ""},
-                timeout=self.timeout,
-            )
-        self._raise_for_status(response)
-        return response.json()
+        return self._post_async_json(
+            "/v1/documents/compare",
+            json_body={"text_a": text_a or "", "text_b": text_b or ""},
+            params=params,
+            poll=poll,
+        )
 
     def process_document(
         self,
@@ -302,8 +389,12 @@ class DocintelClient:
         entities: str | None = None,
         vertical: str | None = None,
         min_score: float = 0.35,
+        async_job: bool = False,
+        callback_url: str | None = None,
+        poll: bool = True,
     ) -> dict[str, Any]:
         file_path = Path(path)
+        params = {"async": "true"} if async_job else {}
         data = {
             "sentences": str(sentences),
             "include_summarize": str(include_summarize).lower(),
@@ -315,12 +406,13 @@ class DocintelClient:
             data["entities"] = entities
         if vertical:
             data["vertical"] = vertical
+        if callback_url:
+            data["callback_url"] = callback_url
         with file_path.open("rb") as handle:
-            response = self._session.post(
-                self._url("/v1/documents/process"),
+            return self._post_async_multipart(
+                "/v1/documents/process",
+                params=params,
                 files={"file": (file_path.name, handle, "application/octet-stream")},
                 data=data,
-                timeout=self.timeout,
+                poll=poll,
             )
-        self._raise_for_status(response)
-        return response.json()

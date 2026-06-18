@@ -241,22 +241,54 @@ def summarize_text_ui(text: str, sentences: int) -> str:
     return json.dumps(response.json(), indent=2)
 
 
-def _post_document_file(endpoint: str, path: Path, *, data: dict | None = None) -> requests.Response:
+def _format_json_response(response: requests.Response) -> str:
+    if response.status_code == 202:
+        payload = response.json()
+        poll_url = payload.get("poll_url")
+        if not poll_url:
+            return "Async job started but poll_url is missing."
+        completed, error = _poll_job_until_complete(poll_url)
+        if error:
+            return error
+        result = completed.get("result") or {}
+        return json.dumps({"status": "ok", **result}, indent=2)
+    if response.ok:
+        return json.dumps(response.json(), indent=2)
+    return _api_error(response)
+
+
+def _post_document_file(
+    endpoint: str,
+    path: Path,
+    *,
+    data: dict | None = None,
+    async_job: bool = True,
+) -> str:
+    url = f"{API_BASE}{endpoint}"
+    if async_job:
+        url = f"{url}?async=true"
     with path.open("rb") as handle:
-        return requests.post(
-            f"{API_BASE}{endpoint}",
+        response = requests.post(
+            url,
             files={"file": (path.name, handle, "application/octet-stream")},
             data=data or {},
             headers=_api_headers(),
             timeout=120,
         )
+    return _format_json_response(response)
 
 
 def identify_document_ui(upload_file: Any) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    response = _post_document_file("/v1/documents/identify", path)
+    with path.open("rb") as handle:
+        response = requests.post(
+            f"{API_BASE}/v1/documents/identify",
+            files={"file": (path.name, handle, "application/octet-stream")},
+            headers=_api_headers(),
+            timeout=120,
+        )
     if not response.ok:
         return _api_error(response)
     return json.dumps(response.json(), indent=2)
@@ -266,10 +298,11 @@ def extract_document_text_ui(upload_file: Any) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    response = _post_document_file("/v1/documents/extract-text", path)
-    if not response.ok:
-        return _api_error(response)
-    payload = response.json()
+    payload_text = _post_document_file("/v1/documents/extract-text", path)
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError:
+        return payload_text
     preview = payload.get("text", "")
     if len(preview) > 2000:
         preview = preview[:2000] + "\n...(truncated)"
@@ -282,34 +315,25 @@ def classify_document_ui(upload_file: Any) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    response = _post_document_file("/v1/documents/classify", path)
-    if not response.ok:
-        return _api_error(response)
-    return json.dumps(response.json(), indent=2)
+    return _post_document_file("/v1/documents/classify", path)
 
 
 def summarize_document_ui(upload_file: Any, sentences: int) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    response = _post_document_file(
+    return _post_document_file(
         "/v1/documents/summarize",
         path,
         data={"sentences": str(int(sentences))},
     )
-    if not response.ok:
-        return _api_error(response)
-    return json.dumps(response.json(), indent=2)
 
 
 def detect_pii_document_ui(upload_file: Any) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    response = _post_document_file("/v1/documents/detect-pii", path)
-    if not response.ok:
-        return _api_error(response)
-    return json.dumps(response.json(), indent=2)
+    return _post_document_file("/v1/documents/detect-pii", path)
 
 
 def compare_documents_ui(file_a: Any, file_b: Any) -> str:
@@ -320,7 +344,7 @@ def compare_documents_ui(file_a: Any, file_b: Any) -> str:
 
     with path_a.open("rb") as handle_a, path_b.open("rb") as handle_b:
         response = requests.post(
-            f"{API_BASE}/v1/documents/compare",
+            f"{API_BASE}/v1/documents/compare?async=true",
             files={
                 "file_a": (path_a.name, handle_a, "application/octet-stream"),
                 "file_b": (path_b.name, handle_b, "application/octet-stream"),
@@ -328,9 +352,7 @@ def compare_documents_ui(file_a: Any, file_b: Any) -> str:
             headers=_api_headers(),
             timeout=120,
         )
-    if not response.ok:
-        return _api_error(response)
-    return json.dumps(response.json(), indent=2)
+    return _format_json_response(response)
 
 
 def build_ui():

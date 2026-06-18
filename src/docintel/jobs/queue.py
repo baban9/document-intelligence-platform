@@ -187,6 +187,119 @@ def enqueue_document_process_text_job(
     )
 
 
+def enqueue_classify_document_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_classify_document_job",
+        job_id=job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_summarize_document_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    sentences: int,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_summarize_document_job",
+        job_id=job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        sentences=sentences,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_detect_pii_document_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    *,
+    entities: list[str] | None = None,
+    min_score: float = 0.35,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_detect_pii_document_job",
+        job_id=job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        entities=entities,
+        min_score=min_score,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_extract_text_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_extract_text_job",
+        job_id=job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_compare_job(
+    job_id: str,
+    *,
+    text_a: str | None = None,
+    text_b: str | None = None,
+    path_a: str | None = None,
+    path_b: str | None = None,
+    filename_a: str | None = None,
+    filename_b: str | None = None,
+    content_type_a: str | None = None,
+    content_type_b: str | None = None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_compare_job",
+        job_id=job_id,
+        text_a=text_a,
+        text_b=text_b,
+        path_a=path_a,
+        path_b=path_b,
+        filename_a=filename_a,
+        filename_b=filename_b,
+        content_type_a=content_type_a,
+        content_type_b=content_type_b,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
 def queue_depth() -> int | None:
     """Return RQ queue length when Redis is reachable."""
     try:

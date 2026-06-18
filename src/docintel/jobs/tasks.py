@@ -424,6 +424,227 @@ def run_document_process_text_job(*, job_id: str, text: str, options: dict) -> d
     return result_payload
 
 
+def _extract_upload_text(
+    input_path: str,
+    *,
+    filename: str,
+    content_type: str | None,
+) -> str:
+    from docintel.capabilities.extraction.formats import extract_document_text, identify_document
+
+    path = Path(input_path)
+    identification = identify_document(path, filename=filename, content_type=content_type)
+    extraction = extract_document_text(
+        path,
+        filename=filename,
+        content_type=content_type,
+        identification=identification,
+    )
+    return extraction.text
+
+
+def _complete_text_job(
+    *,
+    job_id: str,
+    progress_message: str,
+    result_payload: dict,
+) -> dict:
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    completed = update_job(
+        job_id,
+        job_status=JobStatus.COMPLETED.value,
+        progress=100,
+        progress_message="Job completed",
+        result=result_payload,
+    )
+    _notify_webhook(callback_url, completed)
+    return result_payload
+
+
+def _fail_text_job(*, job_id: str, exc: Exception) -> None:
+    record = get_job(job_id)
+    callback_url = record.callback_url if record else None
+    failed = update_job(
+        job_id,
+        job_status=JobStatus.FAILED.value,
+        progress=100,
+        progress_message="Job failed",
+        error=str(exc),
+    )
+    _notify_webhook(callback_url, failed)
+
+
+def run_classify_document_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+) -> dict:
+    from docintel.capabilities.understanding.classify import classify_text
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Classifying document",
+    )
+    try:
+        text = _extract_upload_text(input_path, filename=filename, content_type=content_type)
+        result_payload = classify_text(text).to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
+def run_summarize_document_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    sentences: int,
+) -> dict:
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Summarizing document",
+    )
+    try:
+        text = _extract_upload_text(input_path, filename=filename, content_type=content_type)
+        result_payload = summarize_text(text, sentence_count=sentences).to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
+def run_detect_pii_document_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    entities: list[str] | None = None,
+    min_score: float = 0.35,
+) -> dict:
+    from docintel.services.pdf.pii import detect_pii_in_text
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Detecting PII in document",
+    )
+    try:
+        text = _extract_upload_text(input_path, filename=filename, content_type=content_type)
+        hits = detect_pii_in_text(text, entities=entities, min_score=min_score)
+        findings = [hit.to_dict() for hit in hits]
+        result_payload = {"finding_count": len(findings), "findings": findings}
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
+def run_extract_text_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+) -> dict:
+    from docintel.capabilities.extraction.formats import extract_document_text, identify_document
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Extracting text",
+    )
+    try:
+        path = Path(input_path)
+        identification = identify_document(path, filename=filename, content_type=content_type)
+        extraction = extract_document_text(
+            path,
+            filename=filename,
+            content_type=content_type,
+            identification=identification,
+        )
+        result_payload = {"filename": filename, **extraction.to_dict()}
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
+def run_compare_job(
+    *,
+    job_id: str,
+    text_a: str | None = None,
+    text_b: str | None = None,
+    path_a: str | None = None,
+    path_b: str | None = None,
+    filename_a: str | None = None,
+    filename_b: str | None = None,
+    content_type_a: str | None = None,
+    content_type_b: str | None = None,
+) -> dict:
+    from docintel.capabilities.understanding.compare import compare_texts
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Comparing documents",
+    )
+    try:
+        resolved_a = text_a
+        resolved_b = text_b
+        if path_a:
+            resolved_a = _extract_upload_text(
+                path_a,
+                filename=filename_a or Path(path_a).name,
+                content_type=content_type_a,
+            )
+        if path_b:
+            resolved_b = _extract_upload_text(
+                path_b,
+                filename=filename_b or Path(path_b).name,
+                content_type=content_type_b,
+            )
+        if not resolved_a or not resolved_b:
+            raise ValueError("Both documents are required for comparison.")
+        result_payload = compare_texts(resolved_a, resolved_b).to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
 def create_queued_job(
     job_id: str,
     *,

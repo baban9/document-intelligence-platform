@@ -17,6 +17,7 @@ from docintel.capabilities.extraction.formats import (
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.capabilities.understanding.compare import compare_texts
 from docintel.services.pdf import entities_for_vertical
+from docintel.services.integrity import V1_CHECKS, analyze_document_integrity
 from docintel.services.pdf.pii import detect_pii_in_text
 from docintel.services.summary import summarize_text
 from docintel.services.summary.textrank import DEFAULT_SENTENCE_COUNT, MAX_SENTENCE_COUNT
@@ -665,6 +666,79 @@ def compare_documents():
 
     try:
         result = compare_texts(text_a, text_b)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **result.to_dict()})
+
+
+def _parse_integrity_checks() -> tuple[list[str] | None, dict | None, int | None]:
+    payload = request.get_json(silent=True) or {}
+    raw_checks = payload.get("checks", request.form.get("checks"))
+    if raw_checks is None or raw_checks == "":
+        return None, None, None
+    if isinstance(raw_checks, list):
+        checks = [str(item).strip() for item in raw_checks if str(item).strip()]
+    else:
+        checks = [part.strip() for part in str(raw_checks).split(",") if part.strip()]
+    if not checks:
+        return None, {"error": "checks must include at least one integrity check."}, 400
+    unknown = sorted(set(checks) - set(V1_CHECKS))
+    if unknown:
+        return (
+            None,
+            {"error": f"Unknown integrity checks: {', '.join(unknown)}", "supported_checks": list(V1_CHECKS)},
+            400,
+        )
+    return checks, None, None
+
+
+@documents_bp.post("/analyze-integrity")
+@limiter.limit("60 per hour")
+def analyze_integrity_document():
+    """Run document integrity analysis on text or an uploaded document."""
+    run_async = parse_async_flag()
+    callback_url = _callback_url()
+    upload = read_upload(request, "file")
+    checks, checks_error, checks_status = _parse_integrity_checks()
+    if checks_error is not None:
+        return jsonify(checks_error), checks_status
+
+    if run_async:
+        from docintel.jobs.models import JobType
+        from docintel.jobs.queue import enqueue_integrity_document_job, enqueue_integrity_text_job
+
+        if upload is not None:
+            job_id = uuid.uuid4().hex[:12]
+            saved = save_upload(upload, job_dir(job_id))
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_INTEGRITY,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_integrity_document_job,
+                job_id=job_id,
+                input_path=str(saved.path),
+                filename=saved.filename,
+                content_type=saved.content_type,
+                checks=checks,
+            )
+
+        text = _text_from_request("text")
+        if text is None:
+            return jsonify({"error": "Provide JSON/form field 'text' or upload a file."}), 400
+        return enqueue_background_job(
+            job_type=JobType.TEXT_INTEGRITY,
+            callback_url=callback_url,
+            enqueue_fn=enqueue_integrity_text_job,
+            text=text,
+            checks=checks,
+        )
+
+    text, error_payload, status_code = _resolve_text_from_upload_or_body("text")
+    if error_payload is not None:
+        return jsonify(error_payload), status_code
+
+    try:
+        result = analyze_document_integrity(text or "", checks=checks)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

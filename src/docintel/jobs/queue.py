@@ -251,6 +251,46 @@ def enqueue_detect_pii_document_job(
     )
 
 
+def enqueue_integrity_text_job(
+    job_id: str,
+    text: str,
+    *,
+    checks: list[str] | None = None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_integrity_text_job",
+        job_id=job_id,
+        text=text,
+        checks=checks,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
+def enqueue_integrity_document_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    *,
+    checks: list[str] | None = None,
+) -> None:
+    queue = get_queue()
+    queue.enqueue(
+        "docintel.jobs.tasks.run_integrity_document_job",
+        job_id=job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        checks=checks,
+        job_timeout=600,
+        result_ttl=DEFAULT_RESULT_TTL,
+        failure_ttl=DEFAULT_FAILURE_TTL,
+    )
+
+
 def enqueue_extract_text_job(
     job_id: str,
     input_path: str,

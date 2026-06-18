@@ -347,6 +347,39 @@ class DocintelClient:
             poll=poll,
         )
 
+    def analyze_document_integrity(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        checks: list[str] | str | None = None,
+        async_job: bool = False,
+        poll: bool = True,
+    ) -> dict[str, Any]:
+        params = {"async": "true"} if async_job else {}
+        if path is not None:
+            file_path = Path(path)
+            data: dict[str, str] = {}
+            if checks:
+                data["checks"] = ",".join(checks) if isinstance(checks, list) else str(checks)
+            with file_path.open("rb") as handle:
+                return self._post_async_multipart(
+                    "/v1/documents/analyze-integrity",
+                    params=params,
+                    files={"file": (file_path.name, handle, "application/octet-stream")},
+                    data=data,
+                    poll=poll,
+                )
+        payload: dict[str, Any] = {"text": text or ""}
+        if checks:
+            payload["checks"] = checks if isinstance(checks, list) else [part.strip() for part in str(checks).split(",")]
+        return self._post_async_json(
+            "/v1/documents/analyze-integrity",
+            json_body=payload,
+            params=params,
+            poll=poll,
+        )
+
     def compare_documents(
         self,
         *,

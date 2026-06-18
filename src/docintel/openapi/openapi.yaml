@@ -171,6 +171,73 @@ components:
           type: number
           default: 0.35
 
+    AnalyzeIntegrityRequest:
+      type: object
+      properties:
+        text:
+          type: string
+        checks:
+          type: array
+          description: Optional subset of v1 integrity checks
+          items:
+            type: string
+            enum:
+              - placeholders
+              - broken_references
+              - name_drift
+              - number_mismatch
+              - structural_gaps
+
+    IntegrityFinding:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [high, medium, low]
+        category:
+          type: string
+          enum:
+            - placeholder
+            - broken_reference
+            - name_drift
+            - number_mismatch
+            - structural_gap
+        description:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: object
+            properties:
+              quote:
+                type: string
+              start:
+                type: integer
+              end:
+                type: integer
+              context:
+                type: string
+        suggested_fix:
+          type: string
+
+    IntegrityAnalysisResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        finding_count:
+          type: integer
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/IntegrityFinding"
+        summary:
+          type: object
+        checks_run:
+          type: array
+          items:
+            type: string
+
 security:
   - bearerAuth: []
 
@@ -540,6 +607,46 @@ paths:
           description: PII findings
         "503":
           description: Presidio stack unavailable
+
+  /v1/documents/analyze-integrity:
+    post:
+      tags: [documents]
+      summary: Document integrity analysis
+      description: |
+        Detect placeholders, broken cross-references, naming drift, labeled number
+        mismatches, and thin section structure across a document. Returns ranked
+        findings with evidence spans. Supports sync or async (`?async=true`).
+      parameters:
+        - in: query
+          name: async
+          schema:
+            type: boolean
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeIntegrityRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                text:
+                  type: string
+                checks:
+                  type: string
+                  description: Comma-separated integrity checks
+      responses:
+        "200":
+          description: Integrity findings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrityAnalysisResponse"
+        "202":
+          description: Async job accepted
 
   /v1/documents/ingest:
     post:

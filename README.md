@@ -68,7 +68,7 @@ report = client.process_document("policy.docx", include_pii=True)
 | PDF annotate | `POST /v1/pdf/annotate` | Regex highlight, redact, markup |
 | PDF PII scan | `POST /v1/pdf/detect-sensitive` | Presidio + OCR for scanned PDFs |
 | PDF structure | `POST /v1/pdf/structure` | OCR + LLM curated PDF (needs LLM key) |
-| Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process**, **ingest** (S3) |
+| Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process**, **ingest** (S3), **analyze-integrity** |
 | Text | `POST /v1/text/summarize` | TextRank extractive summary |
 | Batch | `POST /v1/batch` | Async summarize, classify, detect_pii, process |
 | Jobs | `GET /v1/jobs/{id}` | Poll async work (`?async=true`; default in Docker when Redis is up) |
@@ -96,6 +96,11 @@ curl -X POST http://127.0.0.1:5000/v1/documents/process \
 # Async: add ?async=true, then poll /v1/jobs/<job_id>
 curl -X POST "http://127.0.0.1:5000/v1/documents/process?async=true" \
   -F "file=@policy.docx"
+
+# Document integrity analysis (placeholders, broken refs, drift, number mismatch)
+curl -X POST http://127.0.0.1:5000/v1/documents/analyze-integrity \
+  -H "Content-Type: application/json" \
+  -d '{"text": "See Section 9.2. Total budget: $1M. Total budget: $900K. TBD"}'
 ```
 
 ---

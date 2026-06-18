@@ -38,6 +38,7 @@ def sample_txt(tmp_path: Path) -> Path:
         ("/v1/documents/classify", JobType.DOCUMENT_CLASSIFY, "enqueue_classify_document_job"),
         ("/v1/documents/summarize", JobType.DOCUMENT_SUMMARIZE, "enqueue_summarize_document_job"),
         ("/v1/documents/extract-text", JobType.DOCUMENT_EXTRACT_TEXT, "enqueue_extract_text_job"),
+        ("/v1/documents/analyze-integrity", JobType.DOCUMENT_INTEGRITY, "enqueue_integrity_document_job"),
     ],
 )
 def test_document_routes_queue_file_jobs(

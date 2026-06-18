@@ -562,6 +562,61 @@ def run_detect_pii_document_job(
     )
 
 
+def run_integrity_text_job(
+    *,
+    job_id: str,
+    text: str,
+    checks: list[str] | None = None,
+) -> dict:
+    from docintel.services.integrity import analyze_document_integrity
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Analyzing document integrity",
+    )
+    try:
+        result_payload = analyze_document_integrity(text, checks=checks).to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
+def run_integrity_document_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    checks: list[str] | None = None,
+) -> dict:
+    from docintel.services.integrity import analyze_document_integrity
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Analyzing document integrity",
+    )
+    try:
+        text = _extract_upload_text(input_path, filename=filename, content_type=content_type)
+        result_payload = analyze_document_integrity(text, checks=checks).to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
 def run_extract_text_job(
     *,
     job_id: str,

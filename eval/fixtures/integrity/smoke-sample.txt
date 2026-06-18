@@ -1,0 +1,12 @@
+1 Introduction
+This introduction has enough content to avoid structural gap warnings in the integrity analyzer.
+
+2 Financial Summary
+Total budget: $1,000,000 for the first quarter rollout.
+Acme Corp signed the master agreement on March 1.
+See Section 9.2 for the detailed breakdown of costs.
+
+3 Closing Notes
+Total budget: $900,000 appears in the closing summary without reconciliation.
+Acme Corporation is referenced again in the signature block.
+TBD

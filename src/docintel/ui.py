@@ -496,6 +496,36 @@ def compare_documents_ui(file_a: Any, file_b: Any) -> str:
     return _format_json_response(response)
 
 
+def _show_feature_panel(selected: str) -> list[Any]:
+    """Return visibility updates for each main content panel."""
+    import gradio as gr
+
+    panels = ("process", "integrity", "tools", "annotate", "sensitive", "structure", "summarize")
+    return [gr.update(visible=(name == selected)) for name in panels]
+
+
+_SIDEBAR_CSS = """
+.app-shell { gap: 0 !important; align-items: stretch !important; min-height: 88vh; }
+.sidebar {
+    background: #f7f8fa;
+    border-right: 1px solid #e2e5ea;
+    padding: 1rem 0.75rem 1.5rem;
+}
+.sidebar-brand { margin: 0 0 0.25rem 0 !important; font-size: 1.15rem !important; }
+.sidebar-status { font-size: 0.8rem !important; color: #5f6368 !important; margin-bottom: 1rem !important; }
+.sidebar-section {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #8b919a;
+    margin: 1rem 0 0.35rem 0.5rem;
+}
+.main-panel { padding: 1.25rem 1.5rem 2rem; background: #fff; }
+.panel-title { margin-top: 0 !important; margin-bottom: 0.35rem !important; }
+.panel-desc { color: #5f6368; font-size: 0.92rem; margin-bottom: 1rem !important; }
+"""
+
+
 def build_ui():
     import gradio as gr
 
@@ -507,206 +537,246 @@ def build_ui():
         "Squiggly",
         "Strikeout",
     ]
+    office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
+    nav_choices = [
+        ("Process pipeline", "process"),
+        ("Integrity analysis", "integrity"),
+        ("Document tools", "tools"),
+        ("PDF annotate", "annotate"),
+        ("Sensitive PDF", "sensitive"),
+        ("PDF structure", "structure"),
+        ("Text summarize", "summarize"),
+    ]
 
-    with gr.Blocks(title="Document Intelligence Platform") as demo:
-        gr.Markdown(
-            "# Document Intelligence Platform\n"
-            "Upload documents, detect sensitive data, structure PDFs, and summarize text. "
-            f"Backend API: `{API_BASE}`"
+    with gr.Blocks(title="Document Intelligence Platform", css=_SIDEBAR_CSS) as demo:
+        with gr.Row(elem_classes=["app-shell"]):
+            with gr.Column(scale=1, min_width=230, elem_classes=["sidebar"]):
+                gr.Markdown("### Document Intelligence", elem_classes=["sidebar-brand"])
+                gr.Markdown(check_api_health(), elem_classes=["sidebar-status"])
+
+                gr.Markdown("DOCUMENTS", elem_classes=["sidebar-section"])
+                nav = gr.Radio(
+                    choices=nav_choices,
+                    value="process",
+                    label=None,
+                    show_label=False,
+                    elem_id="feature-nav",
+                )
+                gr.Markdown(
+                    f"API: `{API_BASE}`",
+                    elem_classes=["sidebar-status"],
+                )
+
+            with gr.Column(scale=4, elem_classes=["main-panel"]):
+                with gr.Group(visible=True) as process_panel:
+                    gr.Markdown("## Process pipeline", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Extract, classify, summarize, and scan for PII in one async job. "
+                        "Requires Redis and a worker. Office formats need the documents extra on the API.",
+                        elem_classes=["panel-desc"],
+                    )
+                    from docintel.capabilities.compliance.presets import list_vertical_presets
+
+                    vertical_choices = [""] + sorted(list_vertical_presets().keys())
+                    process_file = gr.File(label="Document upload", file_types=office_types)
+                    with gr.Row():
+                        process_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
+                        process_vertical = gr.Dropdown(
+                            vertical_choices,
+                            value="",
+                            label="PII vertical preset (optional)",
+                        )
+                    with gr.Row():
+                        process_include_summary = gr.Checkbox(label="Include summary", value=True)
+                        process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
+                        process_include_text = gr.Checkbox(label="Include extracted text", value=False)
+                    process_entities = gr.Textbox(
+                        label="PII entities override (comma-separated, optional)",
+                        placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
+                    )
+                    process_btn = gr.Button("Process document", variant="primary")
+                    process_output = gr.Textbox(label="Results", lines=18)
+
+                with gr.Group(visible=False) as integrity_panel:
+                    gr.Markdown("## Integrity analysis", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Find placeholders, broken references, naming drift, number mismatches, "
+                        "and thin sections. Uses async jobs when Redis is available.",
+                        elem_classes=["panel-desc"],
+                    )
+                    integrity_file = gr.File(label="Document upload", file_types=office_types)
+                    integrity_checks = gr.CheckboxGroup(
+                        list(V1_CHECKS),
+                        value=list(V1_CHECKS),
+                        label="Checks to run",
+                    )
+                    integrity_text = gr.Textbox(
+                        label="Or paste text",
+                        lines=8,
+                        placeholder="Paste policy or contract text if you are not uploading a file.",
+                    )
+                    integrity_btn = gr.Button("Analyze integrity", variant="primary")
+                    integrity_summary = gr.Textbox(label="Summary", lines=5)
+                    integrity_table = gr.Dataframe(
+                        headers=["Severity", "Category", "Description", "Evidence", "Suggested fix"],
+                        label="Findings",
+                        interactive=False,
+                    )
+
+                with gr.Group(visible=False) as tools_panel:
+                    gr.Markdown("## Document tools", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Identify, extract, classify, summarize, scan for PII, and compare documents.",
+                        elem_classes=["panel-desc"],
+                    )
+                    doc_file = gr.File(label="Document upload", file_types=office_types)
+                    with gr.Row():
+                        compare_file_a = gr.File(label="Compare document A", file_types=office_types)
+                        compare_file_b = gr.File(label="Compare document B", file_types=office_types)
+                    doc_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
+                    with gr.Row():
+                        identify_btn = gr.Button("Identify")
+                        extract_btn = gr.Button("Extract text")
+                        classify_btn = gr.Button("Classify")
+                    with gr.Row():
+                        summarize_doc_btn = gr.Button("Summarize file")
+                        detect_pii_btn = gr.Button("Detect PII")
+                        compare_btn = gr.Button("Compare files")
+                    doc_output = gr.Textbox(label="Results", lines=14)
+
+                with gr.Group(visible=False) as annotate_panel:
+                    gr.Markdown("## PDF annotate", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Search a PDF with a regex pattern and apply highlight, redact, or markup.",
+                        elem_classes=["panel-desc"],
+                    )
+                    annotate_file = gr.File(label="PDF upload", file_types=[".pdf"])
+                    with gr.Row():
+                        annotate_pattern = gr.Textbox(label="Regex pattern", placeholder="CONFIDENTIAL")
+                        annotate_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
+                    annotate_btn = gr.Button("Annotate PDF", variant="primary")
+                    annotate_output = gr.File(label="Annotated PDF")
+                    annotate_status = gr.Textbox(label="Status")
+
+                with gr.Group(visible=False) as sensitive_panel:
+                    gr.Markdown("## Sensitive PDF", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "OCR plus Presidio for scanned PDFs. Leave entities blank for the default preset.",
+                        elem_classes=["panel-desc"],
+                    )
+                    sensitive_file = gr.File(label="PDF upload", file_types=[".pdf"])
+                    with gr.Row():
+                        sensitive_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
+                        sensitive_entities = gr.Textbox(
+                            label="Presidio entities (optional)",
+                            placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
+                        )
+                    with gr.Row():
+                        sensitive_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
+                        sensitive_text_layer = gr.Checkbox(label="Add searchable text layer", value=True)
+                    sensitive_btn = gr.Button("Detect and annotate", variant="primary")
+                    sensitive_output = gr.File(label="Processed PDF")
+                    sensitive_report = gr.Textbox(label="Findings report", lines=12)
+
+                with gr.Group(visible=False) as structure_panel:
+                    gr.Markdown("## PDF structure", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Convert scanned PDFs into a curated digital PDF. Requires "
+                        "`DOCINTEL_LLM_API_KEY` on the API server.",
+                        elem_classes=["panel-desc"],
+                    )
+                    structure_file = gr.File(label="PDF upload", file_types=[".pdf"])
+                    with gr.Row():
+                        structure_mode = gr.Dropdown(
+                            ["curate", "searchable"],
+                            value="curate",
+                            label="Output mode",
+                        )
+                        structure_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
+                    structure_btn = gr.Button("Structure PDF", variant="primary")
+                    structure_output = gr.File(label="Structured PDF")
+                    structure_report = gr.Textbox(label="Structure report", lines=8)
+
+                with gr.Group(visible=False) as summarize_panel:
+                    gr.Markdown("## Text summarize", elem_classes=["panel-title"])
+                    gr.Markdown(
+                        "Extractive summary from pasted plain text.",
+                        elem_classes=["panel-desc"],
+                    )
+                    source_text = gr.Textbox(label="Source text", lines=10)
+                    sentence_count = gr.Slider(1, 10, value=3, step=1, label="Sentences")
+                    summary_btn = gr.Button("Summarize", variant="primary")
+                    summary_output = gr.Textbox(label="Summary result", lines=10)
+
+        panel_outputs = [
+            process_panel,
+            integrity_panel,
+            tools_panel,
+            annotate_panel,
+            sensitive_panel,
+            structure_panel,
+            summarize_panel,
+        ]
+        nav.change(_show_feature_panel, inputs=nav, outputs=panel_outputs)
+
+        process_btn.click(
+            process_document_ui,
+            inputs=[
+                process_file,
+                process_sentences,
+                process_include_summary,
+                process_include_pii,
+                process_include_text,
+                process_vertical,
+                process_entities,
+            ],
+            outputs=process_output,
         )
-        gr.Markdown(check_api_health())
-
-        with gr.Tab("PDF regex annotate"):
-            with gr.Row():
-                annotate_file = gr.File(label="PDF upload", file_types=[".pdf"])
-                annotate_pattern = gr.Textbox(label="Regex pattern", placeholder="CONFIDENTIAL")
-                annotate_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
-            annotate_btn = gr.Button("Annotate PDF")
-            annotate_output = gr.File(label="Annotated PDF")
-            annotate_status = gr.Textbox(label="Status")
-
-            annotate_btn.click(
-                annotate_pdf_ui,
-                inputs=[annotate_file, annotate_pattern, annotate_action],
-                outputs=[annotate_output, annotate_status],
-            )
-
-        with gr.Tab("Sensitive PDF (OCR + Presidio)"):
-            gr.Markdown(
-                "For scanned PDFs, EasyOCR extracts text and Presidio highlights PII. "
-                "Leave entities blank to use the default preset."
-            )
-            with gr.Row():
-                sensitive_file = gr.File(label="PDF upload", file_types=[".pdf"])
-                sensitive_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
-            sensitive_entities = gr.Textbox(
-                label="Presidio entities (comma-separated, optional)",
-                placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN,CREDIT_CARD,PERSON",
-            )
-            with gr.Row():
-                sensitive_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
-                sensitive_text_layer = gr.Checkbox(label="Add searchable text layer", value=True)
-            sensitive_btn = gr.Button("Detect and annotate sensitive data")
-            sensitive_output = gr.File(label="Processed PDF")
-            sensitive_report = gr.Textbox(label="Findings report", lines=12)
-
-            sensitive_btn.click(
-                detect_sensitive_ui,
-                inputs=[
-                    sensitive_file,
-                    sensitive_action,
-                    sensitive_entities,
-                    sensitive_force_ocr,
-                    sensitive_text_layer,
-                ],
-                outputs=[sensitive_output, sensitive_report],
-            )
-
-        with gr.Tab("PDF structure (LLM)"):
-            gr.Markdown(
-                "Convert scanned or unstructured PDFs into a curated digital PDF. "
-                "Requires `DOCINTEL_LLM_API_KEY` on the API server (default model: `gpt-4o-mini`). "
-                "Get a key: [platform.openai.com/api-keys](https://platform.openai.com/api-keys) "
-                "| [setup guide](https://platform.openai.com/docs/quickstart)."
-            )
-            with gr.Row():
-                structure_file = gr.File(label="PDF upload", file_types=[".pdf"])
-                structure_mode = gr.Dropdown(
-                    ["curate", "searchable"],
-                    value="curate",
-                    label="Output mode",
-                )
-            structure_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
-            structure_btn = gr.Button("Structure PDF")
-            structure_output = gr.File(label="Structured PDF")
-            structure_report = gr.Textbox(label="Structure report", lines=8)
-
-            structure_btn.click(
-                structure_pdf_ui,
-                inputs=[structure_file, structure_mode, structure_force_ocr],
-                outputs=[structure_output, structure_report],
-            )
-
-        with gr.Tab("Text summarization"):
-            source_text = gr.Textbox(label="Source text", lines=10)
-            sentence_count = gr.Slider(1, 10, value=3, step=1, label="Sentences")
-            summary_btn = gr.Button("Summarize")
-            summary_output = gr.Textbox(label="Summary result", lines=10)
-            summary_btn.click(
-                summarize_text_ui,
-                inputs=[source_text, sentence_count],
-                outputs=summary_output,
-            )
-
-        office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
-        with gr.Tab("Document process"):
-            gr.Markdown(
-                "Run extract, classify, summarize, and PII detection in one async job. "
-                "Requires Redis and a worker (`make run-worker` or docker-compose worker). "
-                "Office formats need `pip install -e '.[documents]'` on the API server (Word, Excel, PowerPoint)."
-            )
-            from docintel.capabilities.compliance.presets import list_vertical_presets
-
-            vertical_choices = [""] + sorted(list_vertical_presets().keys())
-            with gr.Row():
-                process_file = gr.File(label="Document upload", file_types=office_types)
-                process_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
-            with gr.Row():
-                process_include_summary = gr.Checkbox(label="Include summary", value=True)
-                process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
-                process_include_text = gr.Checkbox(label="Include extracted text", value=False)
-            with gr.Row():
-                process_vertical = gr.Dropdown(
-                    vertical_choices,
-                    value="",
-                    label="PII vertical preset (optional)",
-                )
-                process_entities = gr.Textbox(
-                    label="PII entities override (comma-separated, optional)",
-                    placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
-                )
-            process_btn = gr.Button("Process document", variant="primary")
-            process_output = gr.Textbox(label="Process report", lines=18)
-
-            process_btn.click(
-                process_document_ui,
-                inputs=[
-                    process_file,
-                    process_sentences,
-                    process_include_summary,
-                    process_include_pii,
-                    process_include_text,
-                    process_vertical,
-                    process_entities,
-                ],
-                outputs=process_output,
-            )
-
-        with gr.Tab("Document integrity"):
-            gr.Markdown(
-                "Detect placeholders, broken cross-references, naming drift, labeled number "
-                "mismatches, and thin section structure. Uses async jobs when Redis is available."
-            )
-            with gr.Row():
-                integrity_file = gr.File(label="Document upload", file_types=office_types)
-                integrity_checks = gr.CheckboxGroup(
-                    list(V1_CHECKS),
-                    value=list(V1_CHECKS),
-                    label="Checks to run",
-                )
-            integrity_text = gr.Textbox(
-                label="Or paste text",
-                lines=8,
-                placeholder="Paste policy or contract text if you are not uploading a file.",
-            )
-            integrity_btn = gr.Button("Analyze integrity", variant="primary")
-            integrity_summary = gr.Textbox(label="Summary", lines=5)
-            integrity_table = gr.Dataframe(
-                headers=["Severity", "Category", "Description", "Evidence", "Suggested fix"],
-                label="Findings",
-                interactive=False,
-            )
-
-            integrity_btn.click(
-                analyze_document_integrity_ui,
-                inputs=[integrity_file, integrity_text, integrity_checks],
-                outputs=[integrity_summary, integrity_table],
-            )
-
-        with gr.Tab("Document tools"):
-            gr.Markdown(
-                "Identify, extract, classify, summarize, scan for PII, and compare office documents. "
-                "Requires `pip install -e '.[documents]'` for Word, Excel, and PowerPoint."
-            )
-            with gr.Row():
-                doc_file = gr.File(label="Document upload", file_types=office_types)
-                compare_file_a = gr.File(label="Compare document A", file_types=office_types)
-                compare_file_b = gr.File(label="Compare document B", file_types=office_types)
-            doc_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
-            with gr.Row():
-                identify_btn = gr.Button("Identify")
-                extract_btn = gr.Button("Extract text")
-                classify_btn = gr.Button("Classify")
-            with gr.Row():
-                summarize_doc_btn = gr.Button("Summarize file")
-                detect_pii_btn = gr.Button("Detect PII")
-                compare_btn = gr.Button("Compare files")
-            doc_output = gr.Textbox(label="Document tools result", lines=14)
-
-            identify_btn.click(identify_document_ui, inputs=[doc_file], outputs=doc_output)
-            extract_btn.click(extract_document_text_ui, inputs=[doc_file], outputs=doc_output)
-            classify_btn.click(classify_document_ui, inputs=[doc_file], outputs=doc_output)
-            summarize_doc_btn.click(
-                summarize_document_ui,
-                inputs=[doc_file, doc_sentences],
-                outputs=doc_output,
-            )
-            detect_pii_btn.click(detect_pii_document_ui, inputs=[doc_file], outputs=doc_output)
-            compare_btn.click(
-                compare_documents_ui,
-                inputs=[compare_file_a, compare_file_b],
-                outputs=doc_output,
-            )
+        integrity_btn.click(
+            analyze_document_integrity_ui,
+            inputs=[integrity_file, integrity_text, integrity_checks],
+            outputs=[integrity_summary, integrity_table],
+        )
+        identify_btn.click(identify_document_ui, inputs=[doc_file], outputs=doc_output)
+        extract_btn.click(extract_document_text_ui, inputs=[doc_file], outputs=doc_output)
+        classify_btn.click(classify_document_ui, inputs=[doc_file], outputs=doc_output)
+        summarize_doc_btn.click(
+            summarize_document_ui,
+            inputs=[doc_file, doc_sentences],
+            outputs=doc_output,
+        )
+        detect_pii_btn.click(detect_pii_document_ui, inputs=[doc_file], outputs=doc_output)
+        compare_btn.click(
+            compare_documents_ui,
+            inputs=[compare_file_a, compare_file_b],
+            outputs=doc_output,
+        )
+        annotate_btn.click(
+            annotate_pdf_ui,
+            inputs=[annotate_file, annotate_pattern, annotate_action],
+            outputs=[annotate_output, annotate_status],
+        )
+        sensitive_btn.click(
+            detect_sensitive_ui,
+            inputs=[
+                sensitive_file,
+                sensitive_action,
+                sensitive_entities,
+                sensitive_force_ocr,
+                sensitive_text_layer,
+            ],
+            outputs=[sensitive_output, sensitive_report],
+        )
+        structure_btn.click(
+            structure_pdf_ui,
+            inputs=[structure_file, structure_mode, structure_force_ocr],
+            outputs=[structure_output, structure_report],
+        )
+        summary_btn.click(
+            summarize_text_ui,
+            inputs=[source_text, sentence_count],
+            outputs=summary_output,
+        )
 
     return demo
 

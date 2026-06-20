@@ -504,25 +504,151 @@ def _show_feature_panel(selected: str) -> list[Any]:
     return [gr.update(visible=(name == selected)) for name in panels]
 
 
-_SIDEBAR_CSS = """
+_DEMO_THEME = None
+
+
+def _demo_theme():
+    """Light dashboard theme: white surfaces, orange accents, soft gray text."""
+    global _DEMO_THEME
+    if _DEMO_THEME is not None:
+        return _DEMO_THEME
+
+    import gradio as gr
+
+    _DEMO_THEME = (
+        gr.themes.Soft(
+            primary_hue=gr.themes.colors.orange,
+            secondary_hue=gr.themes.colors.orange,
+            neutral_hue=gr.themes.colors.gray,
+            font=gr.themes.GoogleFont("Inter"),
+        )
+        .set(
+            body_background_fill="#ffffff",
+            body_background_fill_dark="#ffffff",
+            block_background_fill="#ffffff",
+            block_background_fill_dark="#ffffff",
+            block_border_color="#e8eaed",
+            block_border_width="1px",
+            block_label_text_color="#4b5563",
+            block_title_text_color="#1f2937",
+            body_text_color="#374151",
+            body_text_color_dark="#374151",
+            button_primary_background_fill="#e8622a",
+            button_primary_background_fill_hover="#cf5724",
+            button_primary_text_color="#ffffff",
+            button_secondary_background_fill="#ffffff",
+            button_secondary_text_color="#374151",
+            button_secondary_border_color="#e8eaed",
+            input_background_fill="#ffffff",
+            input_background_fill_dark="#ffffff",
+            input_border_color="#e8eaed",
+            checkbox_label_background_fill="#ffffff",
+            slider_color="#e8622a",
+            link_text_color="#e8622a",
+            link_text_color_hover="#cf5724",
+            border_color_primary="#e8eaed",
+            background_fill_primary="#ffffff",
+            background_fill_secondary="#fafbfc",
+        )
+    )
+    return _DEMO_THEME
+
+
+_APP_CSS = """
+.gradio-container {
+    background: #ffffff !important;
+    color: #374151 !important;
+    max-width: 100% !important;
+}
 .app-shell { gap: 0 !important; align-items: stretch !important; min-height: 88vh; }
 .sidebar {
-    background: #f7f8fa;
-    border-right: 1px solid #e2e5ea;
-    padding: 1rem 0.75rem 1.5rem;
+    background: #fafbfc !important;
+    border-right: 1px solid #e8eaed !important;
+    padding: 1.25rem 0.85rem 1.5rem;
 }
-.sidebar-brand { margin: 0 0 0.25rem 0 !important; font-size: 1.15rem !important; }
-.sidebar-status { font-size: 0.8rem !important; color: #5f6368 !important; margin-bottom: 1rem !important; }
+.sidebar-brand {
+    margin: 0 0 0.35rem 0 !important;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    color: #1f2937 !important;
+}
+.sidebar-status {
+    font-size: 0.78rem !important;
+    color: #6b7280 !important;
+    margin-bottom: 0.75rem !important;
+    line-height: 1.4 !important;
+}
 .sidebar-section {
     font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    color: #8b919a;
-    margin: 1rem 0 0.35rem 0.5rem;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+    margin: 1.1rem 0 0.45rem 0.35rem;
 }
-.main-panel { padding: 1.25rem 1.5rem 2rem; background: #fff; }
-.panel-title { margin-top: 0 !important; margin-bottom: 0.35rem !important; }
-.panel-desc { color: #5f6368; font-size: 0.92rem; margin-bottom: 1rem !important; }
+.main-panel {
+    padding: 1.35rem 1.75rem 2rem;
+    background: #ffffff !important;
+}
+.panel-title {
+    margin-top: 0 !important;
+    margin-bottom: 0.35rem !important;
+    color: #1f2937 !important;
+    font-weight: 600 !important;
+}
+.panel-desc {
+    color: #6b7280 !important;
+    font-size: 0.92rem;
+    margin-bottom: 1.1rem !important;
+}
+.sidebar #feature-nav {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.sidebar #feature-nav > label {
+    color: #4b5563 !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
+}
+.sidebar #feature-nav .wrap {
+    gap: 0.15rem !important;
+}
+.sidebar #feature-nav label {
+    border: none !important;
+    background: transparent !important;
+    color: #4b5563 !important;
+    padding: 0.55rem 0.7rem !important;
+    border-radius: 8px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+.sidebar #feature-nav label:hover {
+    background: #fff4ed !important;
+    color: #c2410c !important;
+}
+.sidebar #feature-nav label.selected {
+    background: #fde8e8 !important;
+    color: #c2410c !important;
+    box-shadow: inset 3px 0 0 #e8622a !important;
+}
+.sidebar #feature-nav input[type="radio"] {
+    display: none !important;
+}
+.main-panel .primary {
+    background: #e8622a !important;
+    border-color: #e8622a !important;
+}
+.main-panel .primary:hover {
+    background: #cf5724 !important;
+    border-color: #cf5724 !important;
+}
+.main-panel .block {
+    border-color: #e8eaed !important;
+    background: #ffffff !important;
+}
+.main-panel .form {
+    background: #ffffff !important;
+}
 """
 
 
@@ -548,7 +674,11 @@ def build_ui():
         ("Text summarize", "summarize"),
     ]
 
-    with gr.Blocks(title="Document Intelligence Platform", css=_SIDEBAR_CSS) as demo:
+    with gr.Blocks(
+        title="Document Intelligence Platform",
+        theme=_demo_theme(),
+        css=_APP_CSS,
+    ) as demo:
         with gr.Row(elem_classes=["app-shell"]):
             with gr.Column(scale=1, min_width=230, elem_classes=["sidebar"]):
                 gr.Markdown("### Document Intelligence", elem_classes=["sidebar-brand"])

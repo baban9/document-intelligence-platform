@@ -549,144 +549,266 @@ def _select_feature_panel(selected: str) -> list[Any]:
 _DEMO_THEME = None
 
 
+# Orange-only palette (no black or grey UI chrome).
+_ORANGE = "#e8622a"
+_ORANGE_DARK = "#c2410c"
+_ORANGE_MID = "#ea580c"
+_ORANGE_LIGHT = "#fff4ed"
+_ORANGE_SOFT = "#ffedd5"
+_ORANGE_BORDER = "#fdba74"
+_WHITE = "#ffffff"
+
+
 def _demo_theme():
-    """White background, black text, orange navigation and action buttons."""
+    """White and orange UI only. No black or grey surfaces or text."""
     global _DEMO_THEME
     if _DEMO_THEME is not None:
         return _DEMO_THEME
 
     import gradio as gr
 
+    text = _ORANGE_DARK
+    border = _ORANGE_BORDER
     _DEMO_THEME = (
         gr.themes.Base(
             primary_hue=gr.themes.colors.orange,
             secondary_hue=gr.themes.colors.orange,
-            neutral_hue=gr.themes.colors.gray,
+            neutral_hue=gr.themes.colors.orange,
             font=gr.themes.GoogleFont("Inter"),
         )
         .set(
-            body_background_fill="#ffffff",
-            body_background_fill_dark="#ffffff",
-            block_background_fill="#ffffff",
-            block_background_fill_dark="#ffffff",
-            block_border_color="#e5e7eb",
+            body_background_fill=_WHITE,
+            body_background_fill_dark=_WHITE,
+            block_background_fill=_WHITE,
+            block_background_fill_dark=_WHITE,
+            block_border_color=border,
             block_border_width="1px",
-            block_label_text_color="#000000",
-            block_title_text_color="#000000",
-            body_text_color="#000000",
-            body_text_color_dark="#000000",
-            button_primary_background_fill="#e8622a",
+            block_label_text_color=text,
+            block_label_text_color_dark=text,
+            block_title_text_color=text,
+            block_title_text_color_dark=text,
+            body_text_color=text,
+            body_text_color_dark=text,
+            body_text_color_subdued=_ORANGE_MID,
+            body_text_color_subdued_dark=_ORANGE_MID,
+            button_primary_background_fill=_ORANGE,
             button_primary_background_fill_hover="#cf5724",
-            button_primary_text_color="#ffffff",
-            button_secondary_background_fill="#ffffff",
-            button_secondary_text_color="#000000",
-            button_secondary_border_color="#e8622a",
-            button_secondary_background_fill_hover="#fff4ed",
-            input_background_fill="#ffffff",
-            input_background_fill_dark="#ffffff",
-            input_border_color="#e5e7eb",
-            checkbox_label_background_fill="#ffffff",
-            checkbox_label_text_color="#000000",
-            slider_color="#e8622a",
-            link_text_color="#e8622a",
-            border_color_primary="#e5e7eb",
-            background_fill_primary="#ffffff",
-            background_fill_secondary="#ffffff",
+            button_primary_text_color=_WHITE,
+            button_secondary_background_fill=_WHITE,
+            button_secondary_background_fill_dark=_WHITE,
+            button_secondary_background_fill_hover=_ORANGE_LIGHT,
+            button_secondary_background_fill_hover_dark=_ORANGE_LIGHT,
+            button_secondary_text_color=_ORANGE_DARK,
+            button_secondary_text_color_dark=_ORANGE_DARK,
+            button_secondary_border_color=_ORANGE,
+            button_secondary_border_color_dark=_ORANGE,
+            input_background_fill=_WHITE,
+            input_background_fill_dark=_WHITE,
+            input_border_color=border,
+            input_border_color_dark=border,
+            input_placeholder_color=_ORANGE_MID,
+            input_placeholder_color_dark=_ORANGE_MID,
+            checkbox_label_background_fill=_WHITE,
+            checkbox_label_background_fill_dark=_WHITE,
+            checkbox_label_text_color=text,
+            checkbox_label_text_color_dark=text,
+            checkbox_label_border_color=_ORANGE,
+            checkbox_label_border_color_dark=_ORANGE,
+            slider_color=_ORANGE,
+            link_text_color=_ORANGE_DARK,
+            link_text_color_hover="#9a3412",
+            border_color_primary=border,
+            background_fill_primary=_WHITE,
+            background_fill_secondary=_ORANGE_LIGHT,
+            color_accent=_ORANGE,
+            color_accent_soft=_ORANGE_LIGHT,
         )
     )
     return _DEMO_THEME
 
 
-_APP_CSS = """
-.gradio-container {
-    background: #ffffff !important;
-    color: #000000 !important;
+_APP_CSS = f"""
+.gradio-container {{
+    background: {_WHITE} !important;
+    color: {_ORANGE_DARK} !important;
     max-width: 100% !important;
-}
+}}
 .gradio-container .prose, .gradio-container label, .gradio-container p,
 .gradio-container span, .gradio-container h1, .gradio-container h2,
-.gradio-container h3, .gradio-container h4 {
-    color: #000000 !important;
-}
-.app-shell { gap: 0 !important; align-items: stretch !important; min-height: 88vh; }
-.sidebar {
-    background: #ffffff !important;
-    border-right: 1px solid #e5e7eb !important;
+.gradio-container h3, .gradio-container h4, .gradio-container legend {{
+    color: {_ORANGE_DARK} !important;
+}}
+.gradio-container code, .gradio-container pre {{
+    background: {_ORANGE_LIGHT} !important;
+    color: {_ORANGE_DARK} !important;
+    border: 1px solid {_ORANGE_BORDER} !important;
+}}
+.app-shell {{ gap: 0 !important; align-items: stretch !important; min-height: 88vh; }}
+.sidebar {{
+    background: {_WHITE} !important;
+    border-right: 1px solid {_ORANGE_BORDER} !important;
     padding: 1.25rem 0.85rem 1.5rem;
-}
-.sidebar-brand {
+}}
+.sidebar-brand {{
     margin: 0 0 0.35rem 0 !important;
     font-size: 1.05rem !important;
     font-weight: 700 !important;
-    color: #000000 !important;
-}
-.sidebar-status {
+    color: {_ORANGE_DARK} !important;
+}}
+.sidebar-status {{
     font-size: 0.78rem !important;
-    color: #000000 !important;
+    color: {_ORANGE_MID} !important;
     margin-bottom: 0.75rem !important;
     line-height: 1.4 !important;
-}
-.sidebar-section {
-    font-size: 0.68rem;
+}}
+.sidebar-section {{
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.08em;
-    color: #000000 !important;
+    color: {_ORANGE} !important;
     margin: 1.1rem 0 0.45rem 0.15rem;
-}
-.main-panel {
+}}
+.main-panel {{
     padding: 1.35rem 1.75rem 2rem;
-    background: #ffffff !important;
-}
-.panel-title {
+    background: {_WHITE} !important;
+}}
+.panel-title {{
     margin-top: 0 !important;
     margin-bottom: 0.35rem !important;
-    color: #000000 !important;
+    color: {_ORANGE_DARK} !important;
     font-weight: 700 !important;
-}
-.panel-desc {
-    color: #000000 !important;
+}}
+.panel-desc {{
+    color: {_ORANGE_MID} !important;
     font-size: 0.92rem;
     margin-bottom: 1.1rem !important;
-}
-.sidebar .nav-btn {
-    width: 100% !important;
-    margin-bottom: 0.35rem !important;
-}
-.sidebar .nav-btn > button {
+    line-height: 1.5 !important;
+}}
+.sidebar .nav-btn {{ width: 100% !important; margin-bottom: 0.4rem !important; }}
+.sidebar .nav-btn button,
+.sidebar .nav-btn .gr-button {{
     width: 100% !important;
     justify-content: flex-start !important;
     text-align: left !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
     border-radius: 8px !important;
-    min-height: 2.35rem !important;
-}
-.sidebar .nav-btn.secondary > button {
-    background: #ffffff !important;
-    color: #000000 !important;
-    border: 1.5px solid #e8622a !important;
-}
-.sidebar .nav-btn.secondary > button:hover {
-    background: #fff4ed !important;
-    color: #000000 !important;
-}
-.sidebar .nav-btn.primary > button {
-    background: #e8622a !important;
-    color: #ffffff !important;
-    border: 1.5px solid #e8622a !important;
-}
-.main-panel .primary > button {
-    background: #e8622a !important;
-    border-color: #e8622a !important;
-    color: #ffffff !important;
-}
-.main-panel .block, .main-panel .form, .main-panel .panel {
-    border-color: #e5e7eb !important;
-    background: #ffffff !important;
-}
-.main-panel textarea, .main-panel input {
-    color: #000000 !important;
-    background: #ffffff !important;
-}
+    min-height: 2.45rem !important;
+    box-shadow: none !important;
+}}
+.sidebar .nav-btn button.secondary,
+.sidebar .nav-btn .secondary,
+.sidebar .nav-btn button:not(.primary) {{
+    background: {_WHITE} !important;
+    background-color: {_WHITE} !important;
+    color: {_ORANGE_DARK} !important;
+    border: 2px solid {_ORANGE} !important;
+}}
+.sidebar .nav-btn button.secondary:hover,
+.sidebar .nav-btn button:not(.primary):hover {{
+    background: {_ORANGE_LIGHT} !important;
+    color: {_ORANGE_DARK} !important;
+    border-color: #cf5724 !important;
+}}
+.sidebar .nav-btn button.primary,
+.sidebar .nav-btn .primary {{
+    background: {_ORANGE} !important;
+    background-color: {_ORANGE} !important;
+    color: {_WHITE} !important;
+    border: 2px solid {_ORANGE} !important;
+}}
+.sidebar .nav-btn button.primary:hover {{
+    background: #cf5724 !important;
+    border-color: #cf5724 !important;
+    color: {_WHITE} !important;
+}}
+.main-panel label,
+.main-panel .label-wrap,
+.main-panel .label-wrap span,
+.main-panel .block-label,
+.main-panel .block label,
+.main-panel .form span,
+.main-panel .checkbox-group label,
+.main-panel .form-checkbox label {{
+    color: {_ORANGE_DARK} !important;
+    font-weight: 600 !important;
+    background: {_ORANGE_LIGHT} !important;
+    background-color: {_ORANGE_LIGHT} !important;
+    border-color: {_ORANGE_BORDER} !important;
+}}
+.main-panel input[type="checkbox"] {{
+    accent-color: {_ORANGE} !important;
+    border: 2px solid {_ORANGE} !important;
+    outline-color: {_ORANGE} !important;
+}}
+.main-panel .block,
+.main-panel .form,
+.main-panel .panel {{
+    border-color: {_ORANGE_BORDER} !important;
+    background: {_WHITE} !important;
+}}
+.main-panel textarea,
+.main-panel input,
+.main-panel select,
+.main-panel .wrap input {{
+    color: {_ORANGE_DARK} !important;
+    background: {_WHITE} !important;
+    border-color: {_ORANGE_BORDER} !important;
+}}
+.main-panel input::placeholder,
+.main-panel textarea::placeholder {{
+    color: {_ORANGE_MID} !important;
+    opacity: 1 !important;
+}}
+.main-panel .file-upload,
+.main-panel .upload-container,
+.main-panel .upload-container .wrap {{
+    border: 2px dashed {_ORANGE} !important;
+    background: {_ORANGE_LIGHT} !important;
+}}
+.main-panel .file-upload .wrap,
+.main-panel .upload-container .wrap,
+.main-panel .file-upload span,
+.main-panel .upload-container span,
+.main-panel .file-upload p,
+.main-panel .upload-container p,
+.main-panel .file-upload .icon-wrap,
+.main-panel .upload-container .icon-wrap,
+.main-panel .file-upload svg,
+.main-panel .upload-container svg {{
+    color: {_ORANGE_DARK} !important;
+    fill: {_ORANGE_DARK} !important;
+    stroke: {_ORANGE_DARK} !important;
+    opacity: 1 !important;
+}}
+.main-panel .slider-input input,
+.main-panel .wrap .number input {{
+    color: {_ORANGE_DARK} !important;
+}}
+.main-panel input[type="range"] {{
+    accent-color: {_ORANGE} !important;
+}}
+.main-panel .range-input input[type="range"] {{
+    background: {_ORANGE_SOFT} !important;
+}}
+.main-panel .primary > button,
+.main-panel button.primary {{
+    background: {_ORANGE} !important;
+    border-color: {_ORANGE} !important;
+    color: {_WHITE} !important;
+    font-weight: 600 !important;
+}}
+.main-panel .secondary > button,
+.main-panel button.secondary {{
+    background: {_WHITE} !important;
+    color: {_ORANGE_DARK} !important;
+    border: 1px solid {_ORANGE} !important;
+}}
+.main-panel .block > .label-wrap,
+.main-panel .block-label {{
+    background: {_ORANGE_LIGHT} !important;
+    color: {_ORANGE_DARK} !important;
+}}
 """
 
 

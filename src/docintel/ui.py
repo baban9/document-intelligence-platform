@@ -500,15 +500,57 @@ def _show_feature_panel(selected: str) -> list[Any]:
     """Return visibility updates for each main content panel."""
     import gradio as gr
 
-    panels = ("process", "integrity", "tools", "annotate", "sensitive", "structure", "summarize")
+    panels = _PANEL_KEYS
     return [gr.update(visible=(name == selected)) for name in panels]
+
+
+_PANEL_KEYS = ("process", "integrity", "tools", "annotate", "sensitive", "structure", "summarize")
+
+_NAV_SECTIONS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    (
+        "DOCUMENTS",
+        (
+            ("process", "Process pipeline"),
+            ("integrity", "Integrity analysis"),
+            ("tools", "Document tools"),
+        ),
+    ),
+    (
+        "PDF",
+        (
+            ("annotate", "PDF annotate"),
+            ("sensitive", "Sensitive PDF"),
+            ("structure", "PDF structure"),
+        ),
+    ),
+    (
+        "TEXT",
+        (("summarize", "Text summarize"),),
+    ),
+)
+
+
+def _nav_button_updates(selected: str) -> list[Any]:
+    """Return variant updates for sidebar navigation buttons."""
+    import gradio as gr
+
+    updates: list[Any] = []
+    for _section, items in _NAV_SECTIONS:
+        for key, _label in items:
+            updates.append(gr.update(variant="primary" if key == selected else "secondary"))
+    return updates
+
+
+def _select_feature_panel(selected: str) -> list[Any]:
+    """Switch main panel and highlight the active navigation button."""
+    return _show_feature_panel(selected) + _nav_button_updates(selected)
 
 
 _DEMO_THEME = None
 
 
 def _demo_theme():
-    """Light dashboard theme: white surfaces, orange accents, soft gray text."""
+    """White background, black text, orange navigation and action buttons."""
     global _DEMO_THEME
     if _DEMO_THEME is not None:
         return _DEMO_THEME
@@ -516,7 +558,7 @@ def _demo_theme():
     import gradio as gr
 
     _DEMO_THEME = (
-        gr.themes.Soft(
+        gr.themes.Base(
             primary_hue=gr.themes.colors.orange,
             secondary_hue=gr.themes.colors.orange,
             neutral_hue=gr.themes.colors.gray,
@@ -527,28 +569,29 @@ def _demo_theme():
             body_background_fill_dark="#ffffff",
             block_background_fill="#ffffff",
             block_background_fill_dark="#ffffff",
-            block_border_color="#e8eaed",
+            block_border_color="#e5e7eb",
             block_border_width="1px",
-            block_label_text_color="#4b5563",
-            block_title_text_color="#1f2937",
-            body_text_color="#374151",
-            body_text_color_dark="#374151",
+            block_label_text_color="#000000",
+            block_title_text_color="#000000",
+            body_text_color="#000000",
+            body_text_color_dark="#000000",
             button_primary_background_fill="#e8622a",
             button_primary_background_fill_hover="#cf5724",
             button_primary_text_color="#ffffff",
             button_secondary_background_fill="#ffffff",
-            button_secondary_text_color="#374151",
-            button_secondary_border_color="#e8eaed",
+            button_secondary_text_color="#000000",
+            button_secondary_border_color="#e8622a",
+            button_secondary_background_fill_hover="#fff4ed",
             input_background_fill="#ffffff",
             input_background_fill_dark="#ffffff",
-            input_border_color="#e8eaed",
+            input_border_color="#e5e7eb",
             checkbox_label_background_fill="#ffffff",
+            checkbox_label_text_color="#000000",
             slider_color="#e8622a",
             link_text_color="#e8622a",
-            link_text_color_hover="#cf5724",
-            border_color_primary="#e8eaed",
+            border_color_primary="#e5e7eb",
             background_fill_primary="#ffffff",
-            background_fill_secondary="#fafbfc",
+            background_fill_secondary="#ffffff",
         )
     )
     return _DEMO_THEME
@@ -557,33 +600,38 @@ def _demo_theme():
 _APP_CSS = """
 .gradio-container {
     background: #ffffff !important;
-    color: #374151 !important;
+    color: #000000 !important;
     max-width: 100% !important;
+}
+.gradio-container .prose, .gradio-container label, .gradio-container p,
+.gradio-container span, .gradio-container h1, .gradio-container h2,
+.gradio-container h3, .gradio-container h4 {
+    color: #000000 !important;
 }
 .app-shell { gap: 0 !important; align-items: stretch !important; min-height: 88vh; }
 .sidebar {
-    background: #fafbfc !important;
-    border-right: 1px solid #e8eaed !important;
+    background: #ffffff !important;
+    border-right: 1px solid #e5e7eb !important;
     padding: 1.25rem 0.85rem 1.5rem;
 }
 .sidebar-brand {
     margin: 0 0 0.35rem 0 !important;
     font-size: 1.05rem !important;
-    font-weight: 600 !important;
-    color: #1f2937 !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
 }
 .sidebar-status {
     font-size: 0.78rem !important;
-    color: #6b7280 !important;
+    color: #000000 !important;
     margin-bottom: 0.75rem !important;
     line-height: 1.4 !important;
 }
 .sidebar-section {
     font-size: 0.68rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
-    color: #9ca3af;
-    margin: 1.1rem 0 0.45rem 0.35rem;
+    color: #000000 !important;
+    margin: 1.1rem 0 0.45rem 0.15rem;
 }
 .main-panel {
     padding: 1.35rem 1.75rem 2rem;
@@ -592,61 +640,51 @@ _APP_CSS = """
 .panel-title {
     margin-top: 0 !important;
     margin-bottom: 0.35rem !important;
-    color: #1f2937 !important;
-    font-weight: 600 !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
 }
 .panel-desc {
-    color: #6b7280 !important;
+    color: #000000 !important;
     font-size: 0.92rem;
     margin-bottom: 1.1rem !important;
 }
-.sidebar #feature-nav {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+.sidebar .nav-btn {
+    width: 100% !important;
+    margin-bottom: 0.35rem !important;
 }
-.sidebar #feature-nav > label {
-    color: #4b5563 !important;
-    font-size: 0.92rem !important;
+.sidebar .nav-btn > button {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
     font-weight: 500 !important;
-}
-.sidebar #feature-nav .wrap {
-    gap: 0.15rem !important;
-}
-.sidebar #feature-nav label {
-    border: none !important;
-    background: transparent !important;
-    color: #4b5563 !important;
-    padding: 0.55rem 0.7rem !important;
     border-radius: 8px !important;
-    margin: 0 !important;
-    box-shadow: none !important;
+    min-height: 2.35rem !important;
 }
-.sidebar #feature-nav label:hover {
+.sidebar .nav-btn.secondary > button {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1.5px solid #e8622a !important;
+}
+.sidebar .nav-btn.secondary > button:hover {
     background: #fff4ed !important;
-    color: #c2410c !important;
+    color: #000000 !important;
 }
-.sidebar #feature-nav label.selected {
-    background: #fde8e8 !important;
-    color: #c2410c !important;
-    box-shadow: inset 3px 0 0 #e8622a !important;
+.sidebar .nav-btn.primary > button {
+    background: #e8622a !important;
+    color: #ffffff !important;
+    border: 1.5px solid #e8622a !important;
 }
-.sidebar #feature-nav input[type="radio"] {
-    display: none !important;
-}
-.main-panel .primary {
+.main-panel .primary > button {
     background: #e8622a !important;
     border-color: #e8622a !important;
+    color: #ffffff !important;
 }
-.main-panel .primary:hover {
-    background: #cf5724 !important;
-    border-color: #cf5724 !important;
-}
-.main-panel .block {
-    border-color: #e8eaed !important;
+.main-panel .block, .main-panel .form, .main-panel .panel {
+    border-color: #e5e7eb !important;
     background: #ffffff !important;
 }
-.main-panel .form {
+.main-panel textarea, .main-panel input {
+    color: #000000 !important;
     background: #ffffff !important;
 }
 """
@@ -664,15 +702,6 @@ def build_ui():
         "Strikeout",
     ]
     office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
-    nav_choices = [
-        ("Process pipeline", "process"),
-        ("Integrity analysis", "integrity"),
-        ("Document tools", "tools"),
-        ("PDF annotate", "annotate"),
-        ("Sensitive PDF", "sensitive"),
-        ("PDF structure", "structure"),
-        ("Text summarize", "summarize"),
-    ]
 
     with gr.Blocks(
         title="Document Intelligence Platform",
@@ -684,14 +713,18 @@ def build_ui():
                 gr.Markdown("### Document Intelligence", elem_classes=["sidebar-brand"])
                 gr.Markdown(check_api_health(), elem_classes=["sidebar-status"])
 
-                gr.Markdown("DOCUMENTS", elem_classes=["sidebar-section"])
-                nav = gr.Radio(
-                    choices=nav_choices,
-                    value="process",
-                    label=None,
-                    show_label=False,
-                    elem_id="feature-nav",
-                )
+                nav_buttons: list[Any] = []
+                for section_title, items in _NAV_SECTIONS:
+                    gr.Markdown(section_title, elem_classes=["sidebar-section"])
+                    for key, label in items:
+                        nav_buttons.append(
+                            gr.Button(
+                                label,
+                                variant="primary" if key == "process" else "secondary",
+                                elem_classes=["nav-btn"],
+                            )
+                        )
+
                 gr.Markdown(
                     f"API: `{API_BASE}`",
                     elem_classes=["sidebar-status"],
@@ -847,7 +880,13 @@ def build_ui():
             structure_panel,
             summarize_panel,
         ]
-        nav.change(_show_feature_panel, inputs=nav, outputs=panel_outputs)
+
+        nav_keys = [key for _section, items in _NAV_SECTIONS for key, _label in items]
+        for nav_button, nav_key in zip(nav_buttons, nav_keys):
+            nav_button.click(
+                fn=lambda key=nav_key: _select_feature_panel(key),
+                outputs=[*panel_outputs, *nav_buttons],
+            )
 
         process_btn.click(
             process_document_ui,

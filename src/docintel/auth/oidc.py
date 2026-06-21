@@ -42,4 +42,5 @@ def validate_oidc_token(token: str) -> AuthContext | None:
         options={"verify_aud": audience is not None},
     )
     subject = str(claims.get("sub") or claims.get("email") or "oidc-user")
-    return AuthContext(method="oidc", subject=subject)
+    email = str(claims.get("email") or "")
+    return AuthContext(method="oidc", subject=subject, email=email)

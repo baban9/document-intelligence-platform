@@ -12,6 +12,7 @@ from docintel.ops.secrets import credential_fingerprint
 class AuthContext:
     method: str
     subject: str
+    email: str = ""
 
 
 def _configured_keys() -> set[str]:

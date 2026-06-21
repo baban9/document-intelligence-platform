@@ -7,6 +7,7 @@ import {
   revealTenantApiKey,
   updateTenantSettings,
 } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
 import { EntityChipPicker } from "./EntityChipPicker";
 import { ModelPickerModal } from "./ModelPickerModal";
@@ -22,6 +23,7 @@ function titleCase(value: string): string {
 
 export function SettingsPanel() {
   const { tenantSlug, isAdmin } = useTenant();
+  const { user: authUser } = useAuth();
   const [llmProvider, setLlmProvider] = useState("ollama");
   const [llmModel, setLlmModel] = useState("");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
@@ -273,7 +275,9 @@ export function SettingsPanel() {
             ) : null}
             {apiKeySet && apiKeyOwnerMatch ? (
               <p className="settings-masked-key">
-                Your API key is stored with user-only encryption. Only you can view it on this browser.
+                {authUser?.authenticated
+                  ? `Your API key is stored for ${authUser.email || authUser.subject}. Only you can view or replace it.`
+                  : "Your API key is stored with user-only encryption. Sign in with OIDC to use the same owner on every device."}
               </p>
             ) : null}
             {apiKeySet && !apiKeyOwnerMatch && !apiKeyLocked ? (

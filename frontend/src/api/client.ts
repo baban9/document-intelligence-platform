@@ -1,9 +1,24 @@
-import { loadTenantSlug, TENANT_HEADER } from "../lib/tenantStorage";
+import { loadAuthToken } from "../lib/authStorage";
 import { loadSettingsUserId, SETTINGS_USER_HEADER } from "../lib/settingsUserId";
+import { loadTenantSlug, TENANT_HEADER } from "../lib/tenantStorage";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 type JsonRecord = Record<string, unknown>;
+
+export type AuthConfig = {
+  auth_required: boolean;
+  oidc_enabled: boolean;
+  oidc_client_id: string;
+  oidc_scopes: string;
+};
+
+export type AuthMe = {
+  authenticated: boolean;
+  method?: string;
+  subject?: string;
+  email?: string;
+};
 
 export type { JsonRecord };
 
@@ -11,6 +26,10 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
   const headers = new Headers(init.headers ?? {});
   headers.set(TENANT_HEADER, loadTenantSlug());
   headers.set(SETTINGS_USER_HEADER, loadSettingsUserId());
+  const token = loadAuthToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
   return fetch(input, { ...init, headers });
 }
 
@@ -625,4 +644,44 @@ export async function fetchPiiPresets(): Promise<Record<string, string[]>> {
     }
   }
   return mapped;
+}
+
+export async function fetchAuthConfig(): Promise<AuthConfig> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/config`);
+  const payload = await parseJson(response);
+  return {
+    auth_required: Boolean(payload.auth_required),
+    oidc_enabled: Boolean(payload.oidc_enabled),
+    oidc_client_id: String(payload.oidc_client_id ?? ""),
+    oidc_scopes: String(payload.oidc_scopes ?? ""),
+  };
+}
+
+export async function fetchAuthMe(): Promise<AuthMe> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/me`);
+  const payload = await parseJson(response);
+  return {
+    authenticated: Boolean(payload.authenticated),
+    method: typeof payload.method === "string" ? payload.method : undefined,
+    subject: typeof payload.subject === "string" ? payload.subject : undefined,
+    email: typeof payload.email === "string" ? payload.email : undefined,
+  };
+}
+
+export async function exchangeOidcCode(code: string, redirectUri: string): Promise<string> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/oidc/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, redirect_uri: redirectUri }),
+  });
+  const payload = await parseJson(response);
+  return String(payload.access_token ?? "");
+}
+
+export function oidcLoginUrl(redirectUri: string, state: string): string {
+  const params = new URLSearchParams({
+    redirect_uri: redirectUri,
+    state,
+  });
+  return `${API_BASE}/v1/auth/oidc/login?${params.toString()}`;
 }

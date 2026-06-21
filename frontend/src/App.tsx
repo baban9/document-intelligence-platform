@@ -11,6 +11,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SummarizePanel } from "./components/SummarizePanel";
 import { TenantSelector } from "./components/TenantSelector";
 import { UnderstandPanel } from "./components/UnderstandPanel";
+import { useAuth } from "./context/AuthContext";
 
 type NavId =
   | "process"
@@ -58,6 +59,7 @@ const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] =
 export function AppShell() {
   const [health, setHealth] = useState("checking");
   const [activeNav, setActiveNav] = useState<NavId>("process");
+  const { config, user, loading: authLoading, loginWithOidc, logout } = useAuth();
 
   useEffect(() => {
     fetchHealth()
@@ -97,6 +99,24 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="brand">Document Intelligence</div>
         <TenantSelector />
+        <div className="auth-panel">
+          {authLoading ? <p className="result-muted">Auth...</p> : null}
+          {!authLoading && user?.authenticated ? (
+            <p className="auth-user">
+              Signed in{user.email ? `: ${user.email}` : user.subject ? `: ${user.subject}` : ""}
+            </p>
+          ) : null}
+          {!authLoading && config?.oidc_enabled && !user?.authenticated ? (
+            <button type="button" className="secondary-button auth-login-button" onClick={loginWithOidc}>
+              Sign in with OIDC
+            </button>
+          ) : null}
+          {!authLoading && user?.authenticated && config?.oidc_enabled ? (
+            <button type="button" className="secondary-button auth-login-button" onClick={logout}>
+              Sign out
+            </button>
+          ) : null}
+        </div>
         <p className="status">API health: {health}</p>
         <nav>
           {NAV_SECTIONS.map((section) => (

@@ -789,3 +789,21 @@ nav {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
 }
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.auth-user {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #334155;
+  word-break: break-word;
+}
+
+.auth-login-button {
+  width: 100%;
+}

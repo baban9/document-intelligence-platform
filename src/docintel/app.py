@@ -7,6 +7,7 @@ from flask import Flask, jsonify
 from docintel import __version__
 from docintel.config import Config
 from docintel.ops.secrets import sensitive_config_keys
+from docintel.auth.routes import auth_bp
 from docintel.auth.limiter import init_limiter
 from docintel.auth.middleware import register_auth
 from docintel.ops.logging import configure_logging
@@ -46,6 +47,7 @@ def create_app(config: type[Config] = Config) -> Flask:
         )
 
     app.register_blueprint(docs_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(pdf_bp)
     app.register_blueprint(jobs_bp)

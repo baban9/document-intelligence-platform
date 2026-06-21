@@ -14,7 +14,7 @@ from docintel.db.tenants import get_tenant_settings, list_tenants, update_tenant
 from docintel.services.pdf.pii import list_supported_entities
 from docintel.tenants.context import can_access_tenant
 from docintel.tenants.middleware import multi_tenant_enabled
-from docintel.tenants.settings_user import settings_user_id_from_request
+from docintel.tenants.settings_user import resolve_settings_user_id
 
 tenants_bp = Blueprint("tenants", __name__, url_prefix="/v1/tenants")
 
@@ -77,7 +77,7 @@ def get_settings(slug: str):
     return jsonify(
         {
             "status": "ok",
-            **settings.to_dict(settings_user_id=settings_user_id_from_request()),
+            **settings.to_dict(settings_user_id=resolve_settings_user_id()),
         }
     ), 200
 
@@ -95,7 +95,7 @@ def reveal_settings_api_key(slug: str):
     if not can_access_tenant(viewer, slug):
         return jsonify({"error": "Access denied for this tenant."}), 403
 
-    settings_user_id = settings_user_id_from_request()
+    settings_user_id = resolve_settings_user_id()
     if not settings_user_id:
         return jsonify({"error": "X-Settings-User-Id header is required."}), 400
 
@@ -152,7 +152,7 @@ def put_settings(slug: str):
             llm_api_key=api_key,
             pii_entities=entities,
             actor=viewer.slug,
-            settings_user_id=settings_user_id_from_request(),
+            settings_user_id=resolve_settings_user_id(),
         )
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 403
@@ -165,7 +165,7 @@ def put_settings(slug: str):
     return jsonify(
         {
             "status": "ok",
-            **updated.to_dict(settings_user_id=settings_user_id_from_request()),
+            **updated.to_dict(settings_user_id=resolve_settings_user_id()),
         }
     ), 200
 
@@ -185,7 +185,7 @@ def list_llm_models():
     tenant_key = ""
     viewer = _viewer_context()
     resolved_slug = tenant_slug or (viewer.slug if viewer else "")
-    settings_user_id = settings_user_id_from_request()
+    settings_user_id = resolve_settings_user_id()
     if resolved_slug:
         if viewer and not can_access_tenant(viewer, resolved_slug):
             return jsonify({"error": "Access denied for this tenant."}), 403

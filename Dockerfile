@@ -1,5 +1,5 @@
 # Multi-stage Docker build.
-# Default (slim): API + worker without PyTorch / EasyOCR (~400MB+ saved).
+# Default (slim): API + worker with OpenAI SDK for LLM features (structure, annotate planning).
 # Targets: slim (default), ocr (+ CPU torch + scanned PDF OCR).
 # Web UI: React app in frontend/Dockerfile (nginx).
 
@@ -20,7 +20,7 @@ COPY pyproject.toml requirements.txt README.md LICENSE run_worker.py ./
 COPY src ./src
 
 RUN pip install --upgrade pip \
-    && pip install -e ".[jobs,auth,documents,pii]" \
+    && pip install -e ".[jobs,auth,documents,pii,llm]" \
     && python -m spacy download en_core_web_sm
 
 RUN mkdir -p /app/uploads

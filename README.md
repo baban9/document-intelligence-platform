@@ -26,6 +26,8 @@ make launch            # start stack, wait for health, run e2e smoke test
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
 
+**LLM in Docker:** The slim API and worker images include the OpenAI SDK (`pip install -e ".[llm]"`). Compose defaults to Ollama on your host at `http://host.docker.internal:11434/v1`. Run `ollama pull llama3.2` before using Structure PDF or AI-driven PDF annotate.
+
 **Port 5000 already in use?** Edit `.env` and set `DOCINTEL_PORT=5001`, then run `make up` again. Shell-only `DOCINTEL_PORT=5001` without `export` or a `.env` file does not change Docker ports.
 
 | Command | What starts |

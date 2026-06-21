@@ -21,6 +21,7 @@ cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth (see DOCINTEL_PORT if :5000 is busy)
 make env-init          # creates .env when missing
 make up                # Redis, API, worker, React web UI (slim, fast build)
+make launch            # start stack, wait for health, run e2e smoke test
 ```
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
@@ -30,6 +31,8 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 | Command | What starts |
 |---------|-------------|
 | `make up` | **Full local stack:** Redis, slim API, worker, React web UI |
+| `make launch` | Start stack, wait for health, run end-to-end smoke test |
+| `make e2e` | Run e2e smoke test against an already running stack |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
 | `make docker-up` | Slim core only: Redis, API, worker (no UI) |

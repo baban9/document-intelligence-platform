@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -124,11 +124,34 @@ check-ports:
 
 # Full local stack: Redis, slim API, worker, React UI.
 # Use make up-ocr for scanned PDF OCR (large PyTorch download).
+# Set LOGS=0 to skip the log tail after startup (useful in CI).
+# Use make launch for detached startup + health wait + e2e smoke test.
 up: docker-up-local
+
+launch: env-init
+	LOGS=0 $(MAKE) docker-up-local
+	@$(MAKE) wait-healthy
+	@$(MAKE) e2e
+	@echo ""
+	@echo "Launch complete."
+	@echo "  Web UI  http://127.0.0.1:$${UI_PORT:-8080}"
+	@echo "  API     http://127.0.0.1:$${DOCINTEL_PORT:-5000}"
+	@echo "  Logs    make docker-logs"
+
+wait-healthy:
+	$(PYTHON) scripts/wait_for_stack.py \
+		--api-base "http://127.0.0.1:$${DOCINTEL_PORT:-5000}" \
+		--ui-base "http://127.0.0.1:$${UI_PORT:-8080}"
+
+e2e:
+	$(PYTHON) scripts/e2e_test.py \
+		--api-base "http://127.0.0.1:$${DOCINTEL_PORT:-5000}" \
+		--ui-base "http://127.0.0.1:$${UI_PORT:-8080}"
 
 up-ocr: docker-down check-ports
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
+	@$(MAKE) --no-print-directory up-logs-tail
 
 down: docker-down
 
@@ -145,6 +168,19 @@ up-status:
 	@echo "  Metrics    http://127.0.0.1:$${DOCINTEL_PORT:-5000}/metrics?format=prometheus"
 	@echo "  Redis      localhost:$${REDIS_PORT:-6379}"
 	@echo "  Monitoring integration: docs/MONITORING.md"
+	@echo ""
+	@echo "Logs:"
+	@echo "  make launch              start stack, wait for health, run e2e smoke test"
+	@echo "  make e2e                 run e2e against a running stack"
+	@echo "  make docker-logs         follow all services (Ctrl+C to stop following)"
+	@echo "  make docker-logs-api     API only"
+	@echo "  make docker-logs-ui      web UI only"
+	@echo "  make docker-logs-worker  worker only"
+	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'document-intelligence-platform-grafana-1'; then \
+		echo ""; \
+		echo "Old Grafana/Prometheus containers are still running from a prior stack."; \
+		echo "Stop them with: make clean-legacy-monitoring"; \
+	fi
 	@if [ "$${DOCINTEL_DOCKER_TARGET:-slim}" = "slim" ]; then \
 		echo ""; \
 		echo "Scanned PDF OCR is not in this image. Run: make up-ocr"; \
@@ -174,10 +210,23 @@ docker-up-ocr:
 docker-up-local: docker-down check-ports
 	$(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
+	@$(MAKE) --no-print-directory up-logs-tail
 
 docker-up-full: docker-down
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
+	@$(MAKE) --no-print-directory up-logs-tail
+
+# Recent log snapshot plus live follow (containers stay up if you Ctrl+C).
+up-logs-tail:
+ifneq ($(LOGS),0)
+	@echo ""
+	@echo "Recent logs (last 40 lines per service):"
+	@$(COMPOSE) logs --tail=40
+	@echo ""
+	@echo "Following live logs (Ctrl+C stops follow; containers keep running):"
+	@$(COMPOSE) logs -f
+endif
 
 docker-down:
 	$(COMPOSE) down
@@ -190,6 +239,14 @@ docker-logs-api:
 
 docker-logs-ui:
 	$(COMPOSE) logs -f ui
+
+docker-logs-worker:
+	$(COMPOSE) logs -f worker
+
+# Stop orphaned Grafana/Prometheus from older compose files (not part of make up anymore).
+clean-legacy-monitoring:
+	@docker rm -f document-intelligence-platform-grafana-1 document-intelligence-platform-prometheus-1 2>/dev/null || true
+	@echo "Removed legacy monitoring containers if they were running."
 
 generate-corpus:
 	$(PYTHON) scripts/generate_test_corpus.py

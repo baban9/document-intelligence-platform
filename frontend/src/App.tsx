@@ -1,19 +1,48 @@
 import { useEffect, useState } from "react";
 import { fetchHealth } from "./api/client";
+import { AnnotatePanel } from "./components/AnnotatePanel";
+import { DocumentToolsPanel } from "./components/DocumentToolsPanel";
+import { IntegrityPanel } from "./components/IntegrityPanel";
 import { ProcessPanel } from "./components/ProcessPanel";
+import { SensitivePdfPanel } from "./components/SensitivePdfPanel";
+import { StructurePdfPanel } from "./components/StructurePdfPanel";
+import { SummarizePanel } from "./components/SummarizePanel";
 
-const NAV_ITEMS = [
-  { id: "process", label: "Process pipeline", active: true },
-  { id: "integrity", label: "Integrity analysis", active: false },
-  { id: "tools", label: "Document tools", active: false },
-  { id: "annotate", label: "PDF annotate", active: false },
-  { id: "sensitive", label: "Sensitive PDF", active: false },
-  { id: "structure", label: "Structure PDF", active: false },
-  { id: "summarize", label: "Summarize text", active: false },
+type NavId =
+  | "process"
+  | "integrity"
+  | "tools"
+  | "annotate"
+  | "sensitive"
+  | "structure"
+  | "summarize";
+
+const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] = [
+  {
+    title: "Documents",
+    items: [
+      { id: "process", label: "Process pipeline" },
+      { id: "integrity", label: "Integrity analysis" },
+      { id: "tools", label: "Document tools" },
+    ],
+  },
+  {
+    title: "PDF",
+    items: [
+      { id: "annotate", label: "PDF annotate" },
+      { id: "sensitive", label: "Sensitive PDF" },
+      { id: "structure", label: "Structure PDF" },
+    ],
+  },
+  {
+    title: "Text",
+    items: [{ id: "summarize", label: "Summarize text" }],
+  },
 ];
 
 export function AppShell() {
   const [health, setHealth] = useState("checking");
+  const [activeNav, setActiveNav] = useState<NavId>("process");
 
   useEffect(() => {
     fetchHealth()
@@ -21,28 +50,52 @@ export function AppShell() {
       .catch(() => setHealth("offline"));
   }, []);
 
+  function renderPanel() {
+    switch (activeNav) {
+      case "process":
+        return <ProcessPanel />;
+      case "integrity":
+        return <IntegrityPanel />;
+      case "tools":
+        return <DocumentToolsPanel />;
+      case "annotate":
+        return <AnnotatePanel />;
+      case "sensitive":
+        return <SensitivePdfPanel />;
+      case "structure":
+        return <StructurePdfPanel />;
+      case "summarize":
+        return <SummarizePanel />;
+      default:
+        return <ProcessPanel />;
+    }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">Document Intelligence</div>
         <p className="status">API health: {health}</p>
         <nav>
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`nav-button ${item.active ? "nav-button-active" : ""}`}
-              disabled={!item.active}
-            >
-              {item.label}
-            </button>
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.title} className="nav-section">
+              <p className="nav-section-title">{section.title}</p>
+              {section.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`nav-button ${activeNav === item.id ? "nav-button-active" : ""}`}
+                  aria-current={activeNav === item.id ? "page" : undefined}
+                  onClick={() => setActiveNav(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
-        <p className="sidebar-note">More panels are coming soon.</p>
       </aside>
-      <main className="main-panel">
-        <ProcessPanel />
-      </main>
+      <main className="main-panel">{renderPanel()}</main>
     </div>
   );
 }

@@ -100,6 +100,7 @@ def enqueue_annotate_job(
     pattern: str,
     action: str,
     pages: list[int] | None = None,
+    requirements: str | None = None,
 ) -> None:
     _enqueue_docintel_job(
         "docintel.jobs.tasks.run_annotate_pdf_job",
@@ -108,6 +109,7 @@ def enqueue_annotate_job(
         output_path=output_path,
         output_filename=output_filename,
         pattern=pattern,
+        requirements=requirements,
         action=action,
         pages=pages,
     )

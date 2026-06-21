@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { fetchPiiEntities, processDocument } from "../api/client";
+import {
+  fetchPiiEntities,
+  processDocument,
+  type ProcessResult,
+  type ProgressUpdate,
+} from "../api/client";
 import { EntityChipPicker, summarizeSelection } from "./EntityChipPicker";
+import { ProcessResultView } from "./ProcessResultView";
+import { ProgressBanner } from "./ProgressBanner";
 import { toEntityOptions } from "../lib/entityLabels";
 
 const VERTICAL_PRESETS = ["", "general", "financial", "healthcare", "legal"];
+
+function titleCaseStatus(status: string): string {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export function ProcessPanel() {
   const [entityIds, setEntityIds] = useState<string[]>([]);
@@ -16,7 +27,8 @@ export function ProcessPanel() {
   const [includeText, setIncludeText] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+  const [result, setResult] = useState<ProcessResult | null>(null);
 
   const options = useMemo(() => toEntityOptions(entityIds), [entityIds]);
   const presetActive = Boolean(vertical.trim());
@@ -38,18 +50,26 @@ export function ProcessPanel() {
     }
     setLoading(true);
     setError(null);
+    setResult(null);
+    setProgress({ jobStatus: "queued", message: "Submitting document...", progress: 0 });
     try {
-      const payload = await processDocument(file, {
-        sentences,
-        includeSummary,
-        includePii,
-        includeText,
-        vertical: presetActive ? vertical : undefined,
-        entities: presetActive ? undefined : selectedIds,
-      });
+      const payload = await processDocument(
+        file,
+        {
+          sentences,
+          includeSummary,
+          includePii,
+          includeText,
+          vertical: presetActive ? vertical : undefined,
+          entities: presetActive ? undefined : selectedIds,
+        },
+        setProgress,
+      );
       setResult(payload);
+      setProgress({ jobStatus: "completed", message: "Results ready.", progress: 100 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed.");
+      setProgress(null);
     } finally {
       setLoading(false);
     }
@@ -59,9 +79,7 @@ export function ProcessPanel() {
     <section className="panel">
       <header className="panel-header">
         <h1>Process pipeline</h1>
-        <p>
-          Extract, classify, summarize, and scan for PII in one job.
-        </p>
+        <p>Extract, classify, summarize, and scan for PII in one job.</p>
       </header>
 
       <form className="process-form" onSubmit={onSubmit}>
@@ -91,7 +109,7 @@ export function ProcessPanel() {
             <select value={vertical} onChange={(event) => setVertical(event.target.value)}>
               {VERTICAL_PRESETS.map((preset) => (
                 <option key={preset || "none"} value={preset}>
-                  {preset ? preset : "None (manual selection)"}
+                  {preset ? titleCaseStatus(preset) : "None (manual selection)"}
                 </option>
               ))}
             </select>
@@ -141,12 +159,13 @@ export function ProcessPanel() {
         </button>
       </form>
 
+      {progress && loading ? <ProgressBanner progress={progress} /> : null}
+
       {error ? <p className="error-banner">{error}</p> : null}
 
       {result ? (
         <div className="result-card">
-          <h2>Latest result</h2>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
+          <ProcessResultView result={result} />
         </div>
       ) : null}
     </section>

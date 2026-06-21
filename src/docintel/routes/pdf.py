@@ -75,9 +75,10 @@ def annotate():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    pattern = request.form.get("pattern", "")
-    if action != Action.REMOVE and not pattern.strip():
-        return jsonify({"error": "Missing search pattern in form field 'pattern'."}), 400
+    pattern = request.form.get("pattern", "").strip()
+    requirements = request.form.get("requirements", "").strip()
+    if action != Action.REMOVE and not pattern and not requirements:
+        return jsonify({"error": "Provide form field 'requirements' or 'pattern'."}), 400
 
     try:
         pages = _parse_pages(request.form.get("pages"))
@@ -102,23 +103,39 @@ def annotate():
             input_path=input_path,
             output_path=output_path,
             pattern=pattern,
+            requirements=requirements or None,
             action=action,
             pages=pages,
             callback_url=callback_url,
         )
 
     try:
-        result = annotate_pdf(
-            input_file=input_path,
-            output_file=output_path,
-            pattern=pattern,
-            action=action,
-            pages=pages,
-        )
+        if requirements:
+            from docintel.capabilities.pdf.pattern_planner import annotate_pdf_from_requirements
+
+            outcome = annotate_pdf_from_requirements(
+                input_file=input_path,
+                output_file=output_path,
+                requirements=requirements,
+                action=action,
+                pages=pages,
+            )
+            result_payload = outcome.to_dict()
+        else:
+            result = annotate_pdf(
+                input_file=input_path,
+                output_file=output_path,
+                pattern=pattern,
+                action=action,
+                pages=pages,
+            )
+            result_payload = result.to_dict()
     except FileNotFoundError as exc:
         return jsonify({"error": str(exc)}), 404
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 403
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -129,7 +146,7 @@ def annotate():
     if response_format == "json":
         payload = {
             "status": "ok",
-            **result.to_dict(),
+            **result_payload,
             "download_url": f"/v1/pdf/files/{job_id}/{output_path.name}",
         }
         return jsonify(payload), 200
@@ -140,9 +157,9 @@ def annotate():
         as_attachment=True,
         download_name=output_path.name,
     )
-    response.headers["X-Docintel-Matches"] = str(result.matches)
-    response.headers["X-Docintel-Pages-Processed"] = str(result.pages_processed)
-    response.headers["X-Docintel-Action"] = result.action.value
+    response.headers["X-Docintel-Matches"] = str(result_payload.get("matches", 0))
+    response.headers["X-Docintel-Pages-Processed"] = str(result_payload.get("pages_processed", 0))
+    response.headers["X-Docintel-Action"] = str(result_payload.get("action", action.value))
     return response
 
 
@@ -457,6 +474,7 @@ def _enqueue_annotate_job(
     input_path: Path,
     output_path: Path,
     pattern: str,
+    requirements: str | None,
     action: Action,
     pages: list[int] | None,
     callback_url: str | None,
@@ -479,6 +497,7 @@ def _enqueue_annotate_job(
         output_path=str(output_path),
         output_filename=output_path.name,
         pattern=pattern,
+        requirements=requirements,
         action=action.value,
         pages=pages,
     )

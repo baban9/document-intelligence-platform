@@ -174,6 +174,7 @@ def run_annotate_pdf_job(
     pattern: str,
     action: str,
     pages: list[int] | None = None,
+    requirements: str | None = None,
 ) -> dict:
     """Worker entrypoint: regex PDF annotation."""
     record = get_job(job_id)
@@ -187,13 +188,32 @@ def run_annotate_pdf_job(
     )
 
     try:
-        result = annotate_pdf(
-            input_file=Path(input_path),
-            output_file=Path(output_path),
-            pattern=pattern,
-            action=Action.from_value(action),
-            pages=pages,
-        )
+        if requirements and requirements.strip():
+            from docintel.capabilities.pdf.pattern_planner import annotate_pdf_from_requirements
+
+            update_job(
+                job_id,
+                job_status=JobStatus.RUNNING.value,
+                progress=15,
+                progress_message="Planning search patterns with LLM",
+            )
+            outcome = annotate_pdf_from_requirements(
+                input_file=Path(input_path),
+                output_file=Path(output_path),
+                requirements=requirements.strip(),
+                action=Action.from_value(action),
+                pages=pages,
+            )
+            result_payload = outcome.to_dict()
+        else:
+            result = annotate_pdf(
+                input_file=Path(input_path),
+                output_file=Path(output_path),
+                pattern=pattern,
+                action=Action.from_value(action),
+                pages=pages,
+            )
+            result_payload = result.to_dict()
     except Exception as exc:
         failed = update_job(
             job_id,
@@ -206,7 +226,6 @@ def run_annotate_pdf_job(
         raise
 
     download_url = f"/v1/pdf/files/{job_id}/{output_filename}"
-    result_payload = result.to_dict()
     _sync_artifact(job_id, output_filename)
     completed = update_job(
         job_id,

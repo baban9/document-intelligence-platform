@@ -1,94 +1,105 @@
 # Daily planner
 
-Action plan for the next development cycles. Update this file at the start of each working day.
+Action plan broken into small tasks. Each major block maps to a commit on `main`.
 
-Last updated: 2026-06-18
+Last updated: 2026-06-21
 
 ---
 
-## Today (priority)
+## Completed (this sprint)
+
+| Task | Commit | Status |
+|------|--------|--------|
+| PostgreSQL service + tenant schema | c558b6e | done |
+| DB connection + tenant repository + seed tenants | bc1e6e7 | done |
+| Tenant API + isolation middleware | 641d00d | done |
+| Wire LLM/PII to per-tenant settings | 79cbe24 | done |
+| Ollama in Docker Compose + model pull | 0502d96 | done |
+| Settings page + tenant selector UI | f1e7596 | done |
+| Understand document + AI PDF editor | 0414cab | done |
+| Process pipeline tabs + page pager | 5316bcf | done |
+
+---
+
+## Today
 
 | # | Task | Owner | Done |
 |---|------|-------|------|
-| 1 | Ship **Understand document** in Text nav (API + React panel) | dev | [x] |
-| 2 | Ship **AI PDF editor** MVP (session, page preview, LLM edit, download) | dev | [x] |
-| 3 | Run `pytest` and `npm run build`; rebuild UI/API containers | dev | [ ] |
-| 4 | Manual smoke: understand pasted text, understand uploaded DOCX, edit one PDF page with Ollama | QA | [ ] |
+| 1 | Rebuild stack: `docker compose build && make down && LOGS=0 make up` | dev | [ ] |
+| 2 | Smoke: switch tenants in sidebar, save LLM + PII in Settings | QA | [ ] |
+| 3 | Smoke: AI PDF editor with in-docker Ollama | QA | [ ] |
+| 4 | Run pytest with Postgres: `DOCINTEL_DATABASE_URL=... DOCINTEL_MULTI_TENANT=true make test` | dev | [ ] |
 
 ---
 
-## This week
+## Next small tasks (pick one per commit)
 
-### Product (enterprise wedge)
+### Multi-tenant hardening
 
-1. **Process pipeline polish**
-   - Export checked PII rows (CSV/JSON)
-   - Persist selected findings in session state across tab switches
+1. Pass `X-Tenant-Slug` into async job payload and restore context in worker
+2. Encrypt `llm_api_key` at rest in PostgreSQL
+3. Tenant-scoped upload paths (`uploads/{tenant_id}/...`)
+4. Audit log table: tenant, action, user, timestamp
 
-2. **AI PDF editor v2**
-   - OCR fallback for scanned pages before edit
-   - Edit history per page (undo stack)
-   - Review step: show diff before applying to PDF
-   - Warn when page has heavy images (full-page whiteout limitation)
+### Settings UX
 
-3. **Understand document v2**
-   - Async job for large file uploads
-   - Optional LLM "key themes" block (grounded, no new facts)
-   - Link from Understand results to Process pipeline for full audit
+5. Settings: show current API key as masked, validate model list refresh button
+6. Settings: vertical PII presets (healthcare, financial) per tenant
+7. Block save when zero PII entities selected (warn only)
 
-### Platform
+### AI PDF editor v2
 
-4. **Auth and audit**
-   - Document job audit log (who, when, filename hash, job type)
-   - SSO doc walkthrough for OIDC JWT setup
+8. OCR fallback before page edit (scanned PDFs)
+9. Diff preview before applying LLM edit
+10. Per-page edit history (undo)
 
-5. **Ops**
-   - Commit and push understand + editor features
-   - OpenAPI entries for `/v1/text/understand`, `/v1/documents/understand`, `/v1/pdf/editor/*`
-   - E2E test hook for editor session (mock LLM in CI)
+### Product
 
-### De-emphasize (do not expand until core SKUs are sold)
-
-- Keyword classify as standalone story
-- Document compare
-- Structure PDF curate mode without review UI
-- Gradio UI removal cleanup
+11. Export checked PII rows from Process pipeline (CSV)
+12. Understand document: async job for large uploads
+13. OpenAPI entries for `/v1/tenants/*`
 
 ---
 
-## Next week
+## Seed tenants (Docker first boot)
 
-| Theme | Deliverable |
-|-------|-------------|
-| Compliance SKU | Human-in-the-loop PII approve before redact workflow |
-| Extraction SKU | Batch `/v1/batch` support for document files (not text-only) |
-| PDF SKU | Regex annotate templates library (healthcare, finance presets) |
-| Quality | `make eval` thresholds in CI for PII recall on fixture corpus |
+| Slug | Name | Admin |
+|------|------|-------|
+| admin | Platform Admin | yes |
+| acme-corp | Acme Corp | no |
+| healthcare-one | Healthcare One | no |
+| finance-hub | Finance Hub | no |
 
----
-
-## Blockers / decisions needed
-
-| Item | Question | Default if no answer |
-|------|----------|----------------------|
-| PDF editor layout | Keep whiteout rewrite or invest in span-level replace? | Whiteout for text PDFs in v1; OCR path in v2 |
-| Understand async | Sync only for files under N MB? | Sync under 10 MB; async job above |
-| LLM provider | Standardize on Ollama local vs hosted for demos? | Ollama in Docker compose docs |
+Default UI tenant: `acme-corp`. Admin tenant sees all tenants in the dropdown.
 
 ---
 
-## Definition of done (release candidate)
+## Stack URLs (default)
 
-- [ ] All pytest green
-- [ ] `make launch` / `make e2e` green with `DOCINTEL_PORT` from `.env`
-- [ ] README capabilities table lists Understand + AI PDF editor
-- [ ] No runtime spaCy model download in Docker (lg baked at build)
-- [ ] Security: auth optional but documented for production
+| Service | URL |
+|---------|-----|
+| Web UI | http://127.0.0.1:8080 |
+| API | http://127.0.0.1:5000 |
+| Ollama | http://127.0.0.1:11434 |
+| PostgreSQL | localhost:5432 (db: docintel) |
 
 ---
 
-## Suggested commit message (current batch)
+## Definition of done (multi-tenant MVP)
+
+- [x] PostgreSQL stores per-tenant LLM + PII settings
+- [x] Tenant selector in sidebar
+- [x] Settings page for LLM model and PII entities
+- [x] Non-admin tenants isolated from other tenant settings
+- [x] Admin tenant can manage all tenants
+- [x] Ollama runs inside Docker Compose
+- [ ] Async jobs respect tenant context in worker
+- [ ] E2E smoke with Postgres enabled in CI
+
+---
+
+## Suggested next commit message
 
 ```
-Add understand-document API, AI PDF editor, and daily planner doc
+Pass tenant slug into async jobs and restore context in worker
 ```

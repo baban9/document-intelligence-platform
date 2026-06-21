@@ -5,7 +5,7 @@ This folder holds configs you can drop into your existing observability stack.
 | Path | Use when |
 |------|----------|
 | [../docs/MONITORING.md](../docs/MONITORING.md) | Full integration guide (start here) |
-| [prometheus/prometheus.yml](prometheus/prometheus.yml) | Bundled Prometheus for `make docker-up-monitoring` |
+| [prometheus/prometheus.yml](prometheus/prometheus.yml) | Bundled Prometheus for `make up` / `make docker-up-monitoring` |
 | [prometheus/scrape-config.example.yml](prometheus/scrape-config.example.yml) | Add DocIntel to your own Prometheus |
 | [prometheus/alert-rules.yml](prometheus/alert-rules.yml) | Example alert rules |
 | [kubernetes/servicemonitor.yaml](kubernetes/servicemonitor.yaml) | Prometheus Operator on Kubernetes |

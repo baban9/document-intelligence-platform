@@ -63,7 +63,13 @@ sum(rate(docintel_jobs_finished_total{status="failed"}[10m]))
 
 ### Option A: Bundled stack (fastest local setup)
 
-Starts Redis, API, worker, Prometheus, and Grafana with a prebuilt dashboard.
+Starts Redis, API, worker, Gradio UI, Prometheus, and Grafana with a prebuilt dashboard.
+
+```bash
+make up
+```
+
+Monitoring only (slim API, no UI):
 
 ```bash
 make docker-up-monitoring

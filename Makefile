@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean up down up-status docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -74,6 +74,25 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache dist build *.egg-info
 
+# Full local stack: Redis, API, worker, Gradio UI, Prometheus, Grafana (OCR image).
+up: docker-up-local
+
+down: docker-down
+
+up-status:
+	@echo ""
+	@echo "Document Intelligence local stack"
+	@$(COMPOSE) --profile ui --profile monitoring ps
+	@echo ""
+	@echo "URLs:"
+	@echo "  API        http://127.0.0.1:$${DOCINTEL_PORT:-5000}"
+	@echo "  API docs   http://127.0.0.1:$${DOCINTEL_PORT:-5000}/docs"
+	@echo "  Gradio UI  http://127.0.0.1:$${GRADIO_PORT:-7860}"
+	@echo "  Prometheus http://127.0.0.1:$${PROMETHEUS_PORT:-9090}"
+	@echo "  Grafana    http://127.0.0.1:$${GRAFANA_PORT:-3000}  (admin / admin)"
+	@echo "  Redis      localhost:$${REDIS_PORT:-6379}"
+	@echo ""
+
 docker-build:
 	DOCINTEL_DOCKER_TARGET=slim $(COMPOSE) build api
 
@@ -94,17 +113,21 @@ docker-up-ui:
 docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
+docker-up-local:
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui --profile monitoring up -d --build
+	@$(MAKE) --no-print-directory up-status
+
 docker-up-monitoring:
 	$(COMPOSE) --profile monitoring up -d --build redis api worker prometheus grafana
 
-docker-up-monitoring-full:
-	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui --profile monitoring up -d --build
+docker-up-monitoring-full: docker-up-local
 
 docker-up-full:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
+	@$(MAKE) --no-print-directory up-status
 
 docker-down:
-	$(COMPOSE) down
+	$(COMPOSE) --profile ui --profile monitoring down
 
 docker-logs:
 	$(COMPOSE) logs -f

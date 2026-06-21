@@ -13,26 +13,27 @@ Enterprise document intelligence API: PDF compliance (OCR, PII, redaction), LLM 
 
 ## Quick start
 
-**Docker (slim core, optional UI and OCR):**
+**Docker (one command for the full local stack):**
 
 ```bash
 git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth
-make docker-up         # redis + API + worker (~2 min build, no PyTorch)
-make docker-up-ui      # add Gradio when API is healthy
+make up                # Redis, API, worker, UI, Prometheus, Grafana (OCR image)
 ```
+
+Stop everything with `make down`.
 
 | Command | What starts |
 |---------|-------------|
-| `make docker-up` | Redis, slim API, slim worker (documents, PII text, digital PDF) |
-| `make docker-up-ui` | Gradio UI (`--profile ui`) |
-| `make docker-up-ocr` | Rebuild with CPU-only OCR for scanned PDFs (no NVIDIA) |
-| `make docker-up-monitoring` | Core stack + Prometheus + Grafana (`--profile monitoring`) |
-| `make docker-up-monitoring-full` | OCR + UI + monitoring |
-| `make docker-up-full` | OCR stack + UI |
-
-Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `make docker-up-ocr`.
+| `make up` | **Full local stack:** Redis, OCR API, worker, Gradio UI, Prometheus, Grafana |
+| `make down` | Stop and remove all compose services |
+| `make docker-up` | Slim core only: Redis, API, worker (no PyTorch, faster build) |
+| `make docker-up-ui` | Add Gradio when API is already running |
+| `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |
+| `make docker-up-monitoring` | Slim core + Prometheus + Grafana (no UI) |
+| `make docker-up-full` | OCR stack + UI (no monitoring) |
+| `make docker-up-monitoring-full` | Same as `make up` |
 
 | Service | URL |
 |---------|-----|
@@ -40,7 +41,7 @@ Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `m
 | Interactive API docs | http://127.0.0.1:5000/docs |
 | Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
-| Prometheus | http://127.0.0.1:9090 (with `make docker-up-monitoring`) |
+| Prometheus | http://127.0.0.1:9090 (with `make up`) |
 | Grafana | http://127.0.0.1:3000 (default login `admin` / `admin`) |
 | Metrics scrape | http://127.0.0.1:5000/metrics?format=prometheus |
 
@@ -164,7 +165,7 @@ The API exports Prometheus metrics at `GET /metrics?format=prometheus`. For inte
 Quick local demo with bundled Prometheus and Grafana:
 
 ```bash
-make docker-up-monitoring
+make up
 ```
 
 Open Grafana at http://127.0.0.1:3000. The **Document Intelligence - App Performance** dashboard is provisioned automatically.

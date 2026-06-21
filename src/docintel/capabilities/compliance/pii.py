@@ -64,6 +64,21 @@ def warm_pii_analyzer() -> None:
         logger.warning("PII analyzer warm-up skipped: %s", exc)
 
 
+def resolve_pii_entities(entities: Sequence[str] | None = None) -> list[str]:
+    """Use explicit entities, tenant settings, or platform defaults."""
+    if entities:
+        return list(entities)
+    try:
+        from docintel.tenants.context import get_tenant_context
+
+        tenant = get_tenant_context()
+        if tenant and tenant.settings and tenant.settings.pii_entities:
+            return list(tenant.settings.pii_entities)
+    except Exception:
+        pass
+    return list(DEFAULT_PII_ENTITIES)
+
+
 def detect_pii_in_text(
     text: str,
     *,

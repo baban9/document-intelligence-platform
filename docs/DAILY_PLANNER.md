@@ -36,16 +36,16 @@ Last updated: 2026-06-21
 
 ### Multi-tenant hardening
 
-1. Pass `X-Tenant-Slug` into async job payload and restore context in worker
+1. Pass `X-Tenant-Slug` into async job payload and restore context in worker | done |
 2. Encrypt `llm_api_key` at rest in PostgreSQL
 3. Tenant-scoped upload paths (`uploads/{tenant_id}/...`)
 4. Audit log table: tenant, action, user, timestamp
 
 ### Settings UX
 
-5. Settings: show current API key as masked, validate model list refresh button
-6. Settings: vertical PII presets (healthcare, financial) per tenant
-7. Block save when zero PII entities selected (warn only)
+5. Settings: show current API key as masked, validate model list refresh button | done |
+6. Settings: vertical PII presets (healthcare, financial) per tenant | done |
+7. Block save when zero PII entities selected (warn only) | done |
 
 ### AI PDF editor v2
 
@@ -55,9 +55,9 @@ Last updated: 2026-06-21
 
 ### Product
 
-11. Export checked PII rows from Process pipeline (CSV)
+11. Export checked PII rows from Process pipeline (CSV) | done |
 12. Understand document: async job for large uploads
-13. OpenAPI entries for `/v1/tenants/*`
+13. OpenAPI entries for `/v1/tenants/*` | done |
 
 ---
 
@@ -101,5 +101,5 @@ Default UI tenant: `acme-corp`. Admin tenant sees all tenants in the dropdown.
 ## Suggested next commit message
 
 ```
-Pass tenant slug into async jobs and restore context in worker
+Add tenant-scoped upload paths and audit log table
 ```

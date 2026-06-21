@@ -28,6 +28,7 @@ tags:
   - name: jobs
   - name: batch
   - name: text
+  - name: tenants
   - name: ops
 
 components:
@@ -873,3 +874,108 @@ paths:
       responses:
         "200":
           description: Summary sentences
+
+  /v1/tenants:
+    get:
+      tags: [tenants]
+      summary: List tenants visible to the current tenant
+      parameters:
+        - in: header
+          name: X-Tenant-Slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant list
+        "403":
+          description: Access denied
+
+  /v1/tenants/{slug}/settings:
+    get:
+      tags: [tenants]
+      summary: Get tenant LLM and PII settings
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Tenant-Slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tenant settings
+        "403":
+          description: Access denied
+        "404":
+          description: Tenant not found
+    put:
+      tags: [tenants]
+      summary: Update tenant LLM and PII settings
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Tenant-Slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                llm_provider:
+                  type: string
+                  enum: [ollama, groq, gemini, openai]
+                llm_model:
+                  type: string
+                llm_base_url:
+                  type: string
+                llm_api_key:
+                  type: string
+                pii_entities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Updated settings
+        "403":
+          description: Access denied
+        "404":
+          description: Tenant not found
+
+  /v1/tenants/llm/models:
+    get:
+      tags: [tenants]
+      summary: List LLM models for a provider
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: base_url
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Model names
+
+  /v1/tenants/pii/entities:
+    get:
+      tags: [tenants]
+      summary: List supported Presidio entity types
+      responses:
+        "200":
+          description: Entity type names

@@ -25,3 +25,5 @@ class Config:
     S3_REGION = os.getenv("DOCINTEL_S3_REGION", "us-east-1")
     S3_ENDPOINT_URL = os.getenv("DOCINTEL_S3_ENDPOINT_URL", "")
     PROMETHEUS_ENABLED = os.getenv("DOCINTEL_PROMETHEUS_ENABLED", "true").lower() == "true"
+    DATABASE_URL = os.getenv("DOCINTEL_DATABASE_URL", "")
+    MULTI_TENANT = os.getenv("DOCINTEL_MULTI_TENANT", "false").lower() == "true"

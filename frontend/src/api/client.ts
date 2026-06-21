@@ -1,8 +1,16 @@
+import { loadTenantSlug, TENANT_HEADER } from "../lib/tenantStorage";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 type JsonRecord = Record<string, unknown>;
 
 export type { JsonRecord };
+
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers ?? {});
+  headers.set(TENANT_HEADER, loadTenantSlug());
+  return fetch(input, { ...init, headers });
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -34,7 +42,7 @@ export async function postFormAsync(
   onProgress?: (update: ProgressUpdate) => void,
 ): Promise<JsonRecord> {
   const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(`${API_BASE}${path}${separator}async=true`, {
+  const response = await apiFetch(`${API_BASE}${path}${separator}async=true`, {
     method: "POST",
     body: form,
   });
@@ -58,7 +66,7 @@ export async function postJsonAsync(
   body: JsonRecord,
   onProgress?: (update: ProgressUpdate) => void,
 ): Promise<JsonRecord> {
-  const response = await fetch(`${API_BASE}${path}?async=true`, {
+  const response = await apiFetch(`${API_BASE}${path}?async=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -94,7 +102,7 @@ export async function downloadJobPdf(
     throw new Error("Processed PDF is not ready yet.");
   }
 
-  const response = await fetch(`${API_BASE}${downloadPath}`);
+  const response = await apiFetch(`${API_BASE}${downloadPath}`);
   if (!response.ok) {
     throw new Error("Processed PDF could not be downloaded.");
   }
@@ -104,13 +112,13 @@ export async function downloadJobPdf(
 }
 
 export async function fetchHealth(): Promise<string> {
-  const response = await fetch(`${API_BASE}/health`);
+  const response = await apiFetch(`${API_BASE}/health`);
   const payload = await parseJson(response);
   return typeof payload.status === "string" ? payload.status : "unknown";
 }
 
 export async function fetchPiiEntities(): Promise<string[]> {
-  const response = await fetch(`${API_BASE}/v1/pdf/entities`);
+  const response = await apiFetch(`${API_BASE}/v1/pdf/entities`);
   const payload = await parseJson(response);
   const supported = payload.supported_entities;
   if (Array.isArray(supported)) {
@@ -149,7 +157,7 @@ export async function pollJobUntilComplete(
 ): Promise<JsonRecord> {
   const deadline = Date.now() + 600_000;
   while (Date.now() < deadline) {
-    const response = await fetch(`${API_BASE}${pollUrl}`);
+    const response = await apiFetch(`${API_BASE}${pollUrl}`);
     const payload = await parseJson(response);
     const jobStatus = String(payload.job_status || "unknown");
     const message = String(payload.progress_message || jobStatus);
@@ -195,7 +203,7 @@ export async function processDocument(
     form.append("entities", options.entities.join(","));
   }
 
-  const response = await fetch(`${API_BASE}/v1/documents/process?async=true`, {
+  const response = await apiFetch(`${API_BASE}/v1/documents/process?async=true`, {
     method: "POST",
     body: form,
   });
@@ -242,7 +250,7 @@ export async function analyzeIntegrity(
 export async function identifyDocument(file: File): Promise<JsonRecord> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/v1/documents/identify`, {
+  const response = await apiFetch(`${API_BASE}/v1/documents/identify`, {
     method: "POST",
     body: form,
   });
@@ -368,7 +376,7 @@ export async function structurePdf(
 }
 
 export async function summarizeText(text: string, sentences: number): Promise<JsonRecord> {
-  const response = await fetch(`${API_BASE}/v1/text/summarize`, {
+  const response = await apiFetch(`${API_BASE}/v1/text/summarize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, sentences }),
@@ -386,7 +394,7 @@ export async function understandText(
   text: string,
   options: UnderstandOptions,
 ): Promise<JsonRecord> {
-  const response = await fetch(`${API_BASE}/v1/text/understand`, {
+  const response = await apiFetch(`${API_BASE}/v1/text/understand`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -408,7 +416,7 @@ export async function understandDocument(
   form.append("sentences", String(options.sentences));
   form.append("include_summary", String(options.includeSummary));
   form.append("include_pii", String(options.includePii));
-  const response = await fetch(`${API_BASE}/v1/documents/understand`, {
+  const response = await apiFetch(`${API_BASE}/v1/documents/understand`, {
     method: "POST",
     body: form,
   });
@@ -438,7 +446,7 @@ export type PdfEditorPageState = {
 export async function createPdfEditorSession(file: File): Promise<PdfEditorSession> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/v1/pdf/editor/session`, {
+  const response = await apiFetch(`${API_BASE}/v1/pdf/editor/session`, {
     method: "POST",
     body: form,
   });
@@ -456,7 +464,7 @@ export async function fetchPdfEditorPage(
   sessionId: string,
   pageIndex: number,
 ): Promise<PdfEditorPageState> {
-  const response = await fetch(`${API_BASE}/v1/pdf/editor/session/${sessionId}/pages/${pageIndex}`);
+  const response = await apiFetch(`${API_BASE}/v1/pdf/editor/session/${sessionId}/pages/${pageIndex}`);
   const payload = await parseJson(response);
   return {
     session_id: String(payload.session_id ?? sessionId),
@@ -479,7 +487,7 @@ export async function applyPdfEditorEdit(
 ): Promise<PdfEditorPageState> {
   const form = new FormData();
   form.append("instruction", instruction);
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/v1/pdf/editor/session/${sessionId}/pages/${pageIndex}`,
     {
       method: "POST",
@@ -504,11 +512,78 @@ export async function applyPdfEditorEdit(
 export async function downloadEditorPdf(
   session: PdfEditorSession,
 ): Promise<{ blobUrl: string; filename: string }> {
-  const response = await fetch(`${API_BASE}${session.download_url}`);
+  const response = await apiFetch(`${API_BASE}${session.download_url}`);
   if (!response.ok) {
     throw new Error("Edited PDF could not be downloaded.");
   }
   const blob = await response.blob();
   const filename = session.download_url.split("/").pop() || "edited.pdf";
   return { blobUrl: URL.createObjectURL(blob), filename };
+}
+
+export type TenantRecord = {
+  id: string;
+  slug: string;
+  name: string;
+  is_admin: boolean;
+};
+
+export async function fetchTenants(activeSlug?: string): Promise<{
+  tenants: TenantRecord[];
+  current_tenant: string;
+  is_admin: boolean;
+}> {
+  if (activeSlug) {
+    const headers = new Headers();
+    headers.set(TENANT_HEADER, activeSlug);
+    const response = await fetch(`${API_BASE}/v1/tenants`, { headers });
+    const payload = await parseJson(response);
+    return {
+      tenants: Array.isArray(payload.tenants) ? (payload.tenants as TenantRecord[]) : [],
+      current_tenant: String(payload.current_tenant ?? activeSlug),
+      is_admin: Boolean(payload.is_admin),
+    };
+  }
+  const response = await apiFetch(`${API_BASE}/v1/tenants`);
+  const payload = await parseJson(response);
+  return {
+    tenants: Array.isArray(payload.tenants) ? (payload.tenants as TenantRecord[]) : [],
+    current_tenant: String(payload.current_tenant ?? ""),
+    is_admin: Boolean(payload.is_admin),
+  };
+}
+
+export async function fetchTenantSettings(slug: string): Promise<JsonRecord> {
+  const response = await apiFetch(`${API_BASE}/v1/tenants/${slug}/settings`);
+  return parseJson(response);
+}
+
+export async function updateTenantSettings(slug: string, body: JsonRecord): Promise<JsonRecord> {
+  const response = await apiFetch(`${API_BASE}/v1/tenants/${slug}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJson(response);
+}
+
+export async function fetchLlmModels(
+  provider: string,
+  baseUrl: string,
+): Promise<{ models: string[]; source?: string }> {
+  const params = new URLSearchParams({ provider, base_url: baseUrl });
+  const response = await apiFetch(`${API_BASE}/v1/tenants/llm/models?${params.toString()}`);
+  const payload = await parseJson(response);
+  return {
+    models: Array.isArray(payload.models) ? payload.models.map(String) : [],
+    source: typeof payload.source === "string" ? payload.source : undefined,
+  };
+}
+
+export async function fetchPiiEntityOptions(): Promise<{ entities: string[] }> {
+  const response = await apiFetch(`${API_BASE}/v1/tenants/pii/entities`);
+  const payload = await parseJson(response);
+  return {
+    entities: Array.isArray(payload.entities) ? payload.entities.map(String) : [],
+  };
 }

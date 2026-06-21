@@ -7,7 +7,9 @@ import { PdfEditorPanel } from "./components/PdfEditorPanel";
 import { ProcessPanel } from "./components/ProcessPanel";
 import { SensitivePdfPanel } from "./components/SensitivePdfPanel";
 import { StructurePdfPanel } from "./components/StructurePdfPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { SummarizePanel } from "./components/SummarizePanel";
+import { TenantSelector } from "./components/TenantSelector";
 import { UnderstandPanel } from "./components/UnderstandPanel";
 
 type NavId =
@@ -19,7 +21,8 @@ type NavId =
   | "structure"
   | "editor"
   | "summarize"
-  | "understand";
+  | "understand"
+  | "settings";
 
 const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] = [
   {
@@ -45,6 +48,10 @@ const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] =
       { id: "understand", label: "Understand document" },
       { id: "summarize", label: "Summarize text" },
     ],
+  },
+  {
+    title: "Platform",
+    items: [{ id: "settings", label: "Settings" }],
   },
 ];
 
@@ -78,6 +85,8 @@ export function AppShell() {
         return <SummarizePanel />;
       case "understand":
         return <UnderstandPanel />;
+      case "settings":
+        return <SettingsPanel />;
       default:
         return <ProcessPanel />;
     }
@@ -87,6 +96,7 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">Document Intelligence</div>
+        <TenantSelector />
         <p className="status">API health: {health}</p>
         <nav>
           {NAV_SECTIONS.map((section) => (

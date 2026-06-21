@@ -6,6 +6,7 @@ import os
 
 from flask import g, jsonify, request
 
+from docintel.db.connection import database_enabled
 from docintel.tenants.context import resolve_tenant_context, set_tenant_context
 
 TENANT_HEADER = "X-Tenant-Slug"
@@ -13,6 +14,8 @@ DEFAULT_TENANT_SLUG = "acme-corp"
 
 
 def multi_tenant_enabled() -> bool:
+    if not database_enabled():
+        return False
     return os.getenv("DOCINTEL_MULTI_TENANT", "false").lower() == "true"
 
 

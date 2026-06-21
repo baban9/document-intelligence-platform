@@ -656,3 +656,34 @@ nav {
   color: #166534;
   border: 1px solid #bbf7d0;
 }
+
+.tenant-selector {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+
+.tenant-selector select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  background: #ffffff;
+}
+
+.settings-form {
+  max-width: 720px;
+}
+
+.settings-fieldset {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.85rem 1rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.settings-fieldset legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+}

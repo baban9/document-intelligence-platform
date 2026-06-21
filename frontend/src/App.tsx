@@ -3,10 +3,12 @@ import { fetchHealth } from "./api/client";
 import { AnnotatePanel } from "./components/AnnotatePanel";
 import { DocumentToolsPanel } from "./components/DocumentToolsPanel";
 import { IntegrityPanel } from "./components/IntegrityPanel";
+import { PdfEditorPanel } from "./components/PdfEditorPanel";
 import { ProcessPanel } from "./components/ProcessPanel";
 import { SensitivePdfPanel } from "./components/SensitivePdfPanel";
 import { StructurePdfPanel } from "./components/StructurePdfPanel";
 import { SummarizePanel } from "./components/SummarizePanel";
+import { UnderstandPanel } from "./components/UnderstandPanel";
 
 type NavId =
   | "process"
@@ -15,7 +17,9 @@ type NavId =
   | "annotate"
   | "sensitive"
   | "structure"
-  | "summarize";
+  | "editor"
+  | "summarize"
+  | "understand";
 
 const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] = [
   {
@@ -32,11 +36,15 @@ const NAV_SECTIONS: { title: string; items: { id: NavId; label: string }[] }[] =
       { id: "annotate", label: "PDF annotate" },
       { id: "sensitive", label: "Sensitive PDF" },
       { id: "structure", label: "Structure PDF" },
+      { id: "editor", label: "AI PDF editor" },
     ],
   },
   {
     title: "Text",
-    items: [{ id: "summarize", label: "Summarize text" }],
+    items: [
+      { id: "understand", label: "Understand document" },
+      { id: "summarize", label: "Summarize text" },
+    ],
   },
 ];
 
@@ -64,8 +72,12 @@ export function AppShell() {
         return <SensitivePdfPanel />;
       case "structure":
         return <StructurePdfPanel />;
+      case "editor":
+        return <PdfEditorPanel />;
       case "summarize":
         return <SummarizePanel />;
+      case "understand":
+        return <UnderstandPanel />;
       default:
         return <ProcessPanel />;
     }

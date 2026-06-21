@@ -375,3 +375,140 @@ export async function summarizeText(text: string, sentences: number): Promise<Js
   });
   return parseJson(response);
 }
+
+export type UnderstandOptions = {
+  sentences: number;
+  includeSummary: boolean;
+  includePii: boolean;
+};
+
+export async function understandText(
+  text: string,
+  options: UnderstandOptions,
+): Promise<JsonRecord> {
+  const response = await fetch(`${API_BASE}/v1/text/understand`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      sentences: options.sentences,
+      include_summary: options.includeSummary,
+      include_pii: options.includePii,
+    }),
+  });
+  return parseJson(response);
+}
+
+export async function understandDocument(
+  file: File,
+  options: UnderstandOptions,
+): Promise<JsonRecord> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("sentences", String(options.sentences));
+  form.append("include_summary", String(options.includeSummary));
+  form.append("include_pii", String(options.includePii));
+  const response = await fetch(`${API_BASE}/v1/documents/understand`, {
+    method: "POST",
+    body: form,
+  });
+  return parseJson(response);
+}
+
+export type PdfEditorSession = {
+  session_id: string;
+  filename: string;
+  page_count: number;
+  pages_edited: number[];
+  download_url: string;
+};
+
+export type PdfEditorPageState = {
+  session_id: string;
+  page: number;
+  page_count: number;
+  text: string;
+  preview_url: string;
+  pages_edited: number[];
+  download_url: string;
+  changes_summary?: string;
+  edited_text?: string;
+};
+
+export async function createPdfEditorSession(file: File): Promise<PdfEditorSession> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_BASE}/v1/pdf/editor/session`, {
+    method: "POST",
+    body: form,
+  });
+  const payload = await parseJson(response);
+  return {
+    session_id: String(payload.session_id),
+    filename: String(payload.filename ?? file.name),
+    page_count: Number(payload.page_count ?? 0),
+    pages_edited: Array.isArray(payload.pages_edited) ? payload.pages_edited.map(Number) : [],
+    download_url: String(payload.download_url ?? ""),
+  };
+}
+
+export async function fetchPdfEditorPage(
+  sessionId: string,
+  pageIndex: number,
+): Promise<PdfEditorPageState> {
+  const response = await fetch(`${API_BASE}/v1/pdf/editor/session/${sessionId}/pages/${pageIndex}`);
+  const payload = await parseJson(response);
+  return {
+    session_id: String(payload.session_id ?? sessionId),
+    page: Number(payload.page ?? pageIndex),
+    page_count: Number(payload.page_count ?? 0),
+    text: String(payload.text ?? ""),
+    preview_url: String(payload.preview_url ?? ""),
+    pages_edited: Array.isArray(payload.pages_edited) ? payload.pages_edited.map(Number) : [],
+    download_url: String(payload.download_url ?? ""),
+    changes_summary:
+      typeof payload.changes_summary === "string" ? payload.changes_summary : undefined,
+    edited_text: typeof payload.edited_text === "string" ? payload.edited_text : undefined,
+  };
+}
+
+export async function applyPdfEditorEdit(
+  sessionId: string,
+  pageIndex: number,
+  instruction: string,
+): Promise<PdfEditorPageState> {
+  const form = new FormData();
+  form.append("instruction", instruction);
+  const response = await fetch(
+    `${API_BASE}/v1/pdf/editor/session/${sessionId}/pages/${pageIndex}`,
+    {
+      method: "POST",
+      body: form,
+    },
+  );
+  const payload = await parseJson(response);
+  return {
+    session_id: String(payload.session_id ?? sessionId),
+    page: Number(payload.page ?? pageIndex),
+    page_count: Number(payload.page_count ?? 0),
+    text: String(payload.text ?? ""),
+    preview_url: String(payload.preview_url ?? ""),
+    pages_edited: Array.isArray(payload.pages_edited) ? payload.pages_edited.map(Number) : [],
+    download_url: String(payload.download_url ?? ""),
+    changes_summary:
+      typeof payload.changes_summary === "string" ? payload.changes_summary : undefined,
+    edited_text: typeof payload.edited_text === "string" ? payload.edited_text : undefined,
+  };
+}
+
+export async function downloadEditorPdf(
+  session: PdfEditorSession,
+): Promise<{ blobUrl: string; filename: string }> {
+  const response = await fetch(`${API_BASE}${session.download_url}`);
+  if (!response.ok) {
+    throw new Error("Edited PDF could not be downloaded.");
+  }
+  const blob = await response.blob();
+  const filename = session.download_url.split("/").pop() || "edited.pdf";
+  return { blobUrl: URL.createObjectURL(blob), filename };
+}

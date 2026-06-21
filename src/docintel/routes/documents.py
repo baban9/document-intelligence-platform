@@ -16,6 +16,7 @@ from docintel.capabilities.extraction.formats import (
 )
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.capabilities.understanding.compare import compare_texts
+from docintel.capabilities.understanding.understand import understand_document, understand_text
 from docintel.services.pdf import entities_for_vertical
 from docintel.services.integrity import V1_CHECKS, analyze_document_integrity
 from docintel.services.pdf.pii import detect_pii_in_text
@@ -743,3 +744,77 @@ def analyze_integrity_document():
         return jsonify({"error": str(exc)}), 400
 
     return jsonify({"status": "ok", **result.to_dict()})
+
+
+def _understand_options_from_request() -> tuple[dict, dict | None, int | None]:
+    payload = request.get_json(silent=True) or {}
+    sentences_raw = payload.get("sentences", request.form.get("sentences", DEFAULT_SENTENCE_COUNT))
+    include_summary_raw = payload.get("include_summary", request.form.get("include_summary", "true"))
+    include_pii_raw = payload.get("include_pii", request.form.get("include_pii", "true"))
+    min_score_raw = payload.get("min_score", request.form.get("min_score", "0.35"))
+    entities_raw = payload.get("entities", request.form.get("entities", ""))
+
+    try:
+        sentences = int(sentences_raw)
+    except (TypeError, ValueError):
+        return {}, {"error": "Field 'sentences' must be an integer."}, 400
+
+    if sentences < 1 or sentences > MAX_SENTENCE_COUNT:
+        return {}, {"error": f"Field 'sentences' must be between 1 and {MAX_SENTENCE_COUNT}."}, 400
+
+    include_summary = str(include_summary_raw).lower() not in {"0", "false", "no"}
+    include_pii = str(include_pii_raw).lower() not in {"0", "false", "no"}
+
+    entities = None
+    if isinstance(entities_raw, list):
+        entities = [str(item) for item in entities_raw if str(item).strip()]
+    elif isinstance(entities_raw, str) and entities_raw.strip():
+        entities = [part.strip() for part in entities_raw.split(",") if part.strip()]
+
+    try:
+        min_score = float(min_score_raw)
+    except (TypeError, ValueError):
+        return {}, {"error": "Field 'min_score' must be a number."}, 400
+
+    return {
+        "sentences": sentences,
+        "include_summary": include_summary,
+        "include_pii": include_pii,
+        "entities": entities,
+        "min_score": min_score,
+    }, None, None
+
+
+@documents_bp.post("/understand")
+@limiter.limit("60 per hour")
+def understand_document_route():
+    """Extract, classify, summarize, and scan an uploaded document for comprehension."""
+    options, options_error, options_status = _understand_options_from_request()
+    if options_error is not None:
+        return jsonify(options_error), options_status
+
+    upload = read_upload(request, "file")
+    if upload is not None:
+        job_id = uuid.uuid4().hex[:12]
+        saved = save_upload(upload, job_dir(job_id))
+        try:
+            result = understand_document(
+                saved.path,
+                filename=saved.filename,
+                content_type=saved.content_type,
+                **options,
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify(result.to_dict()), 200
+
+    text = _text_from_request("text")
+    if text is None:
+        return jsonify({"error": "Provide JSON/form field 'text' or upload a file."}), 400
+
+    try:
+        result = understand_text(text, **options)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify(result.to_dict()), 200

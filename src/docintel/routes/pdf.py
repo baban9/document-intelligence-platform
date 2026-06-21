@@ -22,6 +22,13 @@ from docintel.services.pdf import (
     list_vertical_presets,
     structure_pdf,
 )
+from docintel.capabilities.pdf.editor import (
+    PREVIEW_PREFIX,
+    apply_page_edit,
+    create_editor_session,
+    open_editor_session,
+    page_state,
+)
 
 pdf_bp = Blueprint("pdf", __name__, url_prefix="/v1/pdf")
 
@@ -502,6 +509,99 @@ def _enqueue_annotate_job(
         pages=pages,
     )
     return accepted
+
+
+@pdf_bp.post("/editor/session")
+@limiter.limit("30 per hour")
+def create_pdf_editor_session():
+    """Upload a PDF and start an interactive editor session."""
+    job_id = uuid.uuid4().hex[:12]
+    work_dir = _job_dir(job_id)
+    prepared, upload_error = _prepare_pdf_upload(work_dir)
+    if upload_error is not None:
+        response, status = upload_error
+        return response, status
+    input_path, filename = prepared
+
+    try:
+        session = create_editor_session(input_path, work_dir, job_id, filename)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **session.to_dict()}), 201
+
+
+@pdf_bp.get("/editor/session/<session_id>/pages/<int:page_index>")
+@limiter.limit("200 per hour")
+def get_pdf_editor_page(session_id: str, page_index: int):
+    """Return page text, preview URL, and session metadata."""
+    safe_session = secure_filename(session_id)
+    work_dir = _job_dir(safe_session)
+    try:
+        session = open_editor_session(work_dir, safe_session)
+        payload = page_state(session, page_index)
+    except FileNotFoundError:
+        return jsonify({"error": "Editor session not found."}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **payload}), 200
+
+
+@pdf_bp.get("/editor/session/<session_id>/pages/<int:page_index>/preview")
+@limiter.limit("200 per hour")
+def get_pdf_editor_page_preview(session_id: str, page_index: int):
+    """Render or return a PNG preview for one editor page."""
+    safe_session = secure_filename(session_id)
+    work_dir = _job_dir(safe_session)
+    preview_path = work_dir / f"{PREVIEW_PREFIX}{page_index}.png"
+    try:
+        session = open_editor_session(work_dir, safe_session)
+        if page_index < 0 or page_index >= session.page_count:
+            raise ValueError(f"Page index out of range: {page_index}")
+        if not preview_path.is_file():
+            from docintel.capabilities.pdf.editor import render_page_preview
+
+            render_page_preview(session.working_path, page_index, preview_path)
+    except FileNotFoundError:
+        return jsonify({"error": "Editor session not found."}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return send_file(
+        preview_path,
+        mimetype="image/png",
+        as_attachment=False,
+        download_name=f"page_{page_index + 1}.png",
+    )
+
+
+@pdf_bp.post("/editor/session/<session_id>/pages/<int:page_index>")
+@limiter.limit("60 per hour")
+def edit_pdf_editor_page(session_id: str, page_index: int):
+    """Apply a natural-language edit instruction to one page."""
+    instruction = request.form.get("instruction", "").strip()
+    if not instruction:
+        payload = request.get_json(silent=True) or {}
+        raw = payload.get("instruction", "")
+        instruction = raw.strip() if isinstance(raw, str) else ""
+
+    if not instruction:
+        return jsonify({"error": "Provide form or JSON field 'instruction'."}), 400
+
+    safe_session = secure_filename(session_id)
+    work_dir = _job_dir(safe_session)
+    try:
+        session = open_editor_session(work_dir, safe_session)
+        payload = apply_page_edit(session, page_index, instruction)
+    except FileNotFoundError:
+        return jsonify({"error": "Editor session not found."}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"status": "ok", **payload}), 200
 
 
 @pdf_bp.get("/files/<job_id>/<filename>")

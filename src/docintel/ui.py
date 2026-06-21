@@ -676,8 +676,12 @@ def _demo_theme():
             block_background_fill_dark=_BG,
             block_border_color=_BORDER,
             block_border_width="1px",
+            block_label_background_fill=_BG,
+            block_label_background_fill_dark=_BG,
             block_label_text_color=_TEXT,
             block_label_text_color_dark=_TEXT,
+            block_title_background_fill=_BG,
+            block_title_background_fill_dark=_BG,
             block_title_text_color=_TEXT,
             block_title_text_color_dark=_TEXT,
             body_text_color=_TEXT,
@@ -697,8 +701,16 @@ def _demo_theme():
             button_secondary_border_color_dark=_BORDER,
             input_background_fill=_BG,
             input_background_fill_dark=_BG,
+            input_background_fill_hover=_BG_SOFT,
+            input_background_fill_hover_dark=_BG_SOFT,
+            input_background_fill_focus=_BG,
+            input_background_fill_focus_dark=_BG,
             input_border_color=_BORDER,
             input_border_color_dark=_BORDER,
+            input_border_color_hover="#94a3b8",
+            input_border_color_hover_dark="#94a3b8",
+            input_border_color_focus=_ACCENT,
+            input_border_color_focus_dark=_ACCENT,
             input_placeholder_color=_TEXT_MUTED,
             input_placeholder_color_dark=_TEXT_MUTED,
             checkbox_label_background_fill=_BG,
@@ -712,7 +724,9 @@ def _demo_theme():
             link_text_color_hover=_ACCENT_HOVER,
             border_color_primary=_BORDER,
             background_fill_primary=_BG,
-            background_fill_secondary=_BG_SOFT,
+            background_fill_primary_dark=_BG,
+            background_fill_secondary=_BG,
+            background_fill_secondary_dark=_BG,
             color_accent=_ACCENT,
             color_accent_soft=_BG_SOFT,
             table_even_background_fill=_BG_SOFT,
@@ -732,6 +746,7 @@ _APP_CSS = f"""
     max-width: 1200px !important;
     font-size: 15px !important;
     line-height: 1.55 !important;
+    color-scheme: light !important;
 }}
 .gradio-container .prose,
 .gradio-container label,
@@ -910,6 +925,70 @@ _APP_CSS = f"""
 .findings-table .table-wrap,
 .findings-table .wrap {{
     background: {_BG} !important;
+}}
+
+/* Dropdowns: force readable light menus (Gradio 5). */
+.gradio-container .block-label,
+.gradio-container .label-wrap,
+.gradio-container .label-wrap span,
+.gradio-container label {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: {_TEXT} !important;
+    border: none !important;
+    box-shadow: none !important;
+}}
+.gradio-container .dropdown,
+.gradio-container .dropdown .wrap,
+.gradio-container .dropdown .wrap input,
+.gradio-container .dropdown input,
+.gradio-container .single-select,
+.gradio-container .single-select .wrap,
+.gradio-container .multiselect,
+.gradio-container div.block.dropdown,
+.gradio-container div.block.dropdown .wrap {{
+    background: {_BG} !important;
+    background-color: {_BG} !important;
+    color: {_TEXT} !important;
+}}
+.gradio-container ul.options,
+.gradio-container .options,
+.gradio-container [role="listbox"],
+.gradio-container .dropdown ul.options,
+.gradio-container .dropdown ul,
+.gradio-container .overflow-menu,
+.gradio-container .filterable-dropdown ul {{
+    background: {_BG} !important;
+    background-color: {_BG} !important;
+    color: {_TEXT} !important;
+    border: 1px solid {_BORDER} !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12) !important;
+}}
+.gradio-container ul.options li,
+.gradio-container .options li,
+.gradio-container ul.options li.item,
+.gradio-container [role="listbox"] [role="option"],
+.gradio-container .dropdown li {{
+    background: {_BG} !important;
+    background-color: {_BG} !important;
+    color: {_TEXT} !important;
+}}
+.gradio-container ul.options li:hover,
+.gradio-container ul.options li.selected,
+.gradio-container .options li:hover,
+.gradio-container .options li.selected,
+.gradio-container [role="option"]:hover,
+.gradio-container [role="option"][aria-selected="true"],
+.gradio-container .dropdown li:hover,
+.gradio-container .dropdown li.selected {{
+    background: {_BG_SOFT} !important;
+    background-color: {_BG_SOFT} !important;
+    color: {_TEXT} !important;
+}}
+.gradio-container .dropdown svg,
+.gradio-container .single-select svg {{
+    color: {_TEXT_MUTED} !important;
+    fill: {_TEXT_MUTED} !important;
 }}
 """
 

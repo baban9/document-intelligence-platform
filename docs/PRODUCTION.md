@@ -11,7 +11,7 @@ Checklist and operating notes for running the document intelligence platform in 
 | Storage | Choose `local` or `s3`; verify bucket IAM and lifecycle rules |
 | Redis | Provision Redis for RQ workers; match `REDIS_URL` in API and workers |
 | OCR stack | Default Docker is `slim` (no PyTorch). For scanned PDFs use `make docker-up-ocr` (CPU torch only) |
-| LLM structuring | Set `OPENAI_API_KEY` or compatible endpoint for structure jobs |
+| LLM structuring | Set `DOCINTEL_LLM_PROVIDER` (default `ollama`). Use `groq`, `gemini`, or `openai` with the matching API key env var |
 | Metrics | Scrape `GET /metrics?format=prometheus` or poll JSON metrics |
 | Auth | Enable `DOCINTEL_AUTH_MODE` before exposing to the public internet |
 | Upload limits | Set reverse proxy body size limits above largest expected PDF |

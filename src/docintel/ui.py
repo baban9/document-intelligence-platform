@@ -966,8 +966,8 @@ def build_ui():
                 with gr.Group(visible=False) as structure_panel:
                     gr.Markdown("## PDF structure", elem_classes=["panel-title"])
                     gr.Markdown(
-                        "Convert scanned PDFs into a curated digital PDF. Requires "
-                        "`DOCINTEL_LLM_API_KEY` on the API server.",
+                        "Convert scanned PDFs into a curated digital PDF. Set "
+                        "`DOCINTEL_LLM_PROVIDER` on the API server (default: ollama).",
                         elem_classes=["panel-desc"],
                     )
                     structure_file = gr.File(label="PDF upload", file_types=[".pdf"])

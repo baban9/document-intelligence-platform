@@ -67,7 +67,7 @@ report = client.process_document("policy.docx", include_pii=True)
 |------|-----------|-------|
 | PDF annotate | `POST /v1/pdf/annotate` | Regex highlight, redact, markup |
 | PDF PII scan | `POST /v1/pdf/detect-sensitive` | Presidio + OCR for scanned PDFs |
-| PDF structure | `POST /v1/pdf/structure` | OCR + LLM curated PDF (needs LLM key) |
+| PDF structure | `POST /v1/pdf/structure` | OCR + LLM curated PDF (Ollama, Groq, Gemini, or OpenAI) |
 | Documents | `POST /v1/documents/*` | Identify, extract, classify, summarize, PII, compare, **process**, **ingest** (S3), **analyze-integrity** |
 | Text | `POST /v1/text/summarize` | TextRank extractive summary |
 | Batch | `POST /v1/batch` | Async summarize, classify, detect_pii, process |
@@ -123,7 +123,34 @@ make eval               # offline quality report (summary, classify, process, PI
 
 Async routes and the Gradio integrity tab need Redis. Start it once with `make run-redis` before `make run-worker`.
 
-Copy `.env.example` to `.env` for `DOCINTEL_LLM_API_KEY`, auth keys, Redis, and S3. See comments in that file for all variables.
+Copy `.env.example` to `.env` for LLM provider settings, auth keys, Redis, and S3. See comments in that file for all variables.
+
+### LLM providers (PDF structure)
+
+Set `DOCINTEL_LLM_PROVIDER` to switch backends. Default is **Ollama** (local, no API key required).
+
+| Provider | Env | Default model | API key |
+|----------|-----|---------------|---------|
+| `ollama` | `DOCINTEL_LLM_PROVIDER=ollama` | `llama3.2` | optional (`ollama`) |
+| `groq` | `DOCINTEL_LLM_PROVIDER=groq` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
+| `gemini` | `DOCINTEL_LLM_PROVIDER=gemini` | `gemini-2.0-flash` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+| `openai` | `DOCINTEL_LLM_PROVIDER=openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
+
+`DOCINTEL_LLM_API_KEY` overrides provider-specific keys. `DOCINTEL_LLM_MODEL` and `DOCINTEL_LLM_BASE_URL` override defaults for any provider.
+
+```bash
+# Local Ollama (default)
+ollama pull llama3.2
+export DOCINTEL_LLM_PROVIDER=ollama
+
+# Groq
+export DOCINTEL_LLM_PROVIDER=groq
+export GROQ_API_KEY=your-key
+
+# Gemini
+export DOCINTEL_LLM_PROVIDER=gemini
+export GEMINI_API_KEY=your-key
+```
 
 ---
 

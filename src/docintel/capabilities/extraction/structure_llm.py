@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
+from docintel.capabilities.extraction.llm_providers import (
+    chat_json_completion,
+    create_openai_client,
+    resolve_llm_config,
+)
 from docintel.capabilities.extraction.structure_schema import StructuredDocument, StructuredPage
 
 STRUCTURE_SYSTEM_PROMPT = """You convert noisy OCR or unstructured PDF text into clean structured JSON.
@@ -47,15 +51,9 @@ def _ensure_llm_stack() -> None:
         ) from exc
 
 
-def _llm_settings() -> tuple[str, str, str | None]:
-    api_key = os.getenv("DOCINTEL_LLM_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError(
-            "DOCINTEL_LLM_API_KEY is not set. Configure an OpenAI-compatible API key."
-        )
-    model = os.getenv("DOCINTEL_LLM_MODEL", "gpt-4o-mini").strip()
-    base_url = os.getenv("DOCINTEL_LLM_BASE_URL", "").strip() or None
-    return api_key, model, base_url
+def _llm_settings():
+    """Return resolved LLM config (provider, api_key, model, base_url)."""
+    return resolve_llm_config()
 
 
 def _parse_json_response(raw: str) -> dict[str, Any]:
@@ -76,29 +74,19 @@ def _parse_json_response(raw: str) -> dict[str, Any]:
 def structure_page_text(page_index: int, source_text: str) -> StructuredPage:
     """Send one page of source text to the LLM and return structured output."""
     _ensure_llm_stack()
-    api_key, model, base_url = _llm_settings()
-
-    from openai import OpenAI
-
-    client_kwargs: dict[str, Any] = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
-    client = OpenAI(**client_kwargs)
+    config = _llm_settings()
+    client = create_openai_client(config)
 
     user_prompt = STRUCTURE_USER_TEMPLATE.format(
         page_number=page_index + 1,
         source_text=source_text[:12000],
     )
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.1,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": STRUCTURE_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
+    content = chat_json_completion(
+        client,
+        model=config.model,
+        system_prompt=STRUCTURE_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
     )
-    content = response.choices[0].message.content or "{}"
     payload = _parse_json_response(content)
     return StructuredPage.from_llm_payload(page_index, payload)
 

@@ -17,7 +17,10 @@ from docintel.routes.jobs import jobs_bp
 from docintel.routes.openapi_docs import docs_bp
 from docintel.routes.ops import ops_bp
 from docintel.routes.pdf import pdf_bp
+from docintel.routes.tenants import tenants_bp
 from docintel.routes.text import text_bp
+from docintel.db.init import init_database
+from docintel.tenants.middleware import register_tenant_middleware
 
 
 def create_app(config: type[Config] = Config) -> Flask:
@@ -29,6 +32,7 @@ def create_app(config: type[Config] = Config) -> Flask:
     configure_logging(config.LOG_LEVEL)
     register_request_hooks(app)
     register_auth(app)
+    register_tenant_middleware(app)
     init_limiter(app)
 
     @app.get("/health")
@@ -47,7 +51,14 @@ def create_app(config: type[Config] = Config) -> Flask:
     app.register_blueprint(jobs_bp)
     app.register_blueprint(batch_bp)
     app.register_blueprint(text_bp)
+    app.register_blueprint(tenants_bp)
     app.register_blueprint(ops_bp)
+
+    try:
+        init_database()
+    except Exception:
+        if os.getenv("DOCINTEL_DATABASE_URL", "").strip():
+            raise
 
     if os.getenv("DOCINTEL_WARM_PII", "true").lower() != "false":
         from docintel.capabilities.compliance.pii import warm_pii_analyzer

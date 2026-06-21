@@ -45,6 +45,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu \
-    && pip install -e ".[ocr]"
+# Large wheel; retry on flaky networks (common on first Docker build).
+RUN set -e; \
+    for attempt in 1 2 3 4 5; do \
+      pip install --default-timeout=300 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu \
+        && break; \
+      if [ "$$attempt" -eq 5 ]; then exit 1; fi; \
+      echo "torch download failed (attempt $$attempt/5), retrying..."; \
+      sleep 15; \
+    done \
+    && pip install --default-timeout=120 --retries 5 -e ".[ocr]"
 CMD ["sh", "-c", "gunicorn --bind ${DOCINTEL_HOST}:${DOCINTEL_PORT} --workers ${WEB_CONCURRENCY:-1} --timeout 300 docintel.wsgi:app"]

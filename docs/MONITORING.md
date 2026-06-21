@@ -69,6 +69,12 @@ Starts Redis, API, worker, Gradio UI, Prometheus, and Grafana with a prebuilt da
 make up
 ```
 
+Scanned PDF OCR (downloads CPU PyTorch inside Docker; retry if the network drops):
+
+```bash
+make up-ocr
+```
+
 Monitoring only (slim API, no UI):
 
 ```bash

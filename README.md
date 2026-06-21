@@ -18,15 +18,19 @@ Enterprise document intelligence API: PDF compliance (OCR, PII, redaction), LLM 
 ```bash
 git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
-cp .env.example .env   # optional: ports, LLM key, auth
-make up                # Redis, API, worker, UI, Prometheus, Grafana (OCR image)
+cp .env.example .env   # optional: ports, LLM key, auth (see DOCINTEL_PORT if :5000 is busy)
+make env-init          # creates .env when missing
+make up                # Redis, API, worker, UI, Prometheus, Grafana (slim, fast build)
 ```
 
-Stop everything with `make down`.
+Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
+
+**Port 5000 already in use?** Edit `.env` and set `DOCINTEL_PORT=5001`, then run `make up` again. Shell-only `DOCINTEL_PORT=5001` without `export` or a `.env` file does not change Docker ports.
 
 | Command | What starts |
 |---------|-------------|
-| `make up` | **Full local stack:** Redis, OCR API, worker, Gradio UI, Prometheus, Grafana |
+| `make up` | **Full local stack:** Redis, slim API, worker, Gradio UI, Prometheus, Grafana |
+| `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
 | `make docker-up` | Slim core only: Redis, API, worker (no PyTorch, faster build) |
 | `make docker-up-ui` | Add Gradio when API is already running |
@@ -34,6 +38,7 @@ Stop everything with `make down`.
 | `make docker-up-monitoring` | Slim core + Prometheus + Grafana (no UI) |
 | `make docker-up-full` | OCR stack + UI (no monitoring) |
 | `make docker-up-monitoring-full` | Same as `make up` |
+| `make docker-up-monitoring-ocr` | Same as `make up-ocr` |
 
 | Service | URL |
 |---------|-----|

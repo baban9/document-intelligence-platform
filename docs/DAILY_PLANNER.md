@@ -2,7 +2,7 @@
 
 Action plan broken into small tasks. Each major block maps to a commit on `main`.
 
-Last updated: 2026-06-18
+Last updated: 2026-06-18 (v2.0.0 release)
 
 ---
 

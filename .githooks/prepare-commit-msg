@@ -1,0 +1,15 @@
+#!/bin/sh
+# Strip agent co-author trailers early (covers git commit --trailer and IDE templates).
+# Enable for this repo: make setup-hooks
+
+msg_file="$1"
+case "$2" in
+  message|template|merge|squash) ;;
+  *) exit 0 ;;
+esac
+
+tmp="$(mktemp)"
+grep -viE '^Co-authored-by:[[:space:]]*Cursor[[:space:]]*<' "$msg_file" \
+  | grep -viE '^Co-authored-by:.*cursoragent@cursor\.com' > "$tmp"
+mv "$tmp" "$msg_file"
+exit 0

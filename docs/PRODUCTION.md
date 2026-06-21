@@ -6,7 +6,7 @@ Checklist and operating notes for running the document intelligence platform in 
 
 | Item | Action |
 |------|--------|
-| Secrets | Set `DOCINTEL_API_KEYS` or OIDC settings; never commit `.env` |
+| Secrets | Set `DOCINTEL_API_KEYS` or OIDC settings in `.env` only; never commit `.env`. Run `make setup-hooks` to block secret commits |
 | Webhooks | Set `DOCINTEL_WEBHOOK_SECRET` for signed job callbacks |
 | Storage | Choose `local` or `s3`; verify bucket IAM and lifecycle rules |
 | Redis | Provision Redis for RQ workers; match `REDIS_URL` in API and workers |

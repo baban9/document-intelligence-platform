@@ -1,11 +1,19 @@
 #!/bin/sh
-# Reject commits that include a Cursor agent co-author trailer.
-# Enable: git config core.hooksPath .githooks
+# Block agent co-author trailers on every commit.
+# Enable for this repo: make setup-hooks
 
-if grep -qiE '^Co-authored-by:[[:space:]]*Cursor[[:space:]]*<' "$1"; then
-  echo "commit-msg hook: rejected Co-authored-by trailer for Cursor agent" >&2
-  echo "Remove the trailer and commit again." >&2
+msg_file="$1"
+tmp="$(mktemp)"
+
+# Strip any Co-authored-by line that names Cursor or cursoragent.
+grep -viE '^Co-authored-by:[[:space:]]*Cursor[[:space:]]*<' "$msg_file" \
+  | grep -viE '^Co-authored-by:.*cursoragent@cursor\.com' > "$tmp"
+
+if grep -qiE '^Co-authored-by:.*(Cursor|cursoragent@cursor\.com)' "$tmp"; then
+  echo "commit-msg hook: remove agent Co-authored-by trailers before committing" >&2
+  rm -f "$tmp"
   exit 1
 fi
 
+mv "$tmp" "$msg_file"
 exit 0

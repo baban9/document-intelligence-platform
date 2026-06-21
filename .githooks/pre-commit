@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/.githooks/scan-secrets.sh"

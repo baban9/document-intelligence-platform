@@ -8,6 +8,21 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from docintel.ops.secrets import redact_text
+
+
+class SecretRedactionFilter(logging.Filter):
+    """Strip API keys and tokens from log messages and exception text."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = redact_text(record.msg)
+        if record.args:
+            record.args = tuple(
+                redact_text(arg) if isinstance(arg, str) else arg for arg in record.args
+            )
+        return True
+
 
 class JsonFormatter(logging.Formatter):
     """Format log records as single-line JSON objects."""
@@ -23,7 +38,7 @@ class JsonFormatter(logging.Formatter):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            payload["exception"] = redact_text(self.formatException(record.exc_info))
         return json.dumps(payload, default=str)
 
 
@@ -35,6 +50,7 @@ def configure_logging(level: str = "INFO") -> None:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
+    handler.addFilter(SecretRedactionFilter())
     root.addHandler(handler)
 
     logging.getLogger("werkzeug").setLevel(logging.WARNING)

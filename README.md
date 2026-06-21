@@ -120,7 +120,8 @@ curl -X POST http://127.0.0.1:5000/v1/documents/analyze-integrity \
 
 ```bash
 make setup              # venv + dev deps
-make setup-hooks        # block Cursor agent co-author trailers on commit
+make setup-hooks        # git hooks: strip agent co-authors and block secret commits
+make check-secrets      # scan tracked files for leaked API keys
 make setup-ocr          # EasyOCR, Presidio, spaCy model
 make setup-llm          # OpenAI client (structure endpoint)
 make setup-ui           # Gradio

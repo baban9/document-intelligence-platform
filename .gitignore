@@ -14,11 +14,18 @@ env/
 # OS
 .DS_Store
 
-# Secrets
+# Secrets (never commit real values; store in .env only)
 .env
 .env.local
 .env.*.local
 !.env.example
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.json
+id_rsa
+id_ed25519
 
 # Distribution
 dist/

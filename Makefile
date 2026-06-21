@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean env-init check-ports up up-ocr down up-status docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -17,6 +17,7 @@ setup:
 	$(PIP) install --upgrade pip setuptools wheel
 	$(PIP) install -e ".[dev]"
 	$(MAKE) fix-editable-pth
+	$(MAKE) setup-hooks
 
 fix-editable-pth:
 	@for pth in .venv/lib/python*/site-packages/__editable__*.pth; do \
@@ -24,7 +25,12 @@ fix-editable-pth:
 	done
 
 setup-hooks:
+	chmod +x .githooks/commit-msg .githooks/prepare-commit-msg .githooks/pre-commit .githooks/scan-secrets.sh .githooks/scan-tracked-secrets.sh
 	git config core.hooksPath .githooks
+
+check-secrets:
+	@.githooks/scan-tracked-secrets.sh
+	@echo "secret-scan: no secrets found in tracked files"
 
 setup-ocr:
 	$(PIP) install -e ".[pii]"

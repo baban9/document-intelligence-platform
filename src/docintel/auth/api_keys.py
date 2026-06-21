@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from docintel.ops.secrets import credential_fingerprint
+
 
 @dataclass(frozen=True)
 class AuthContext:
@@ -35,7 +37,7 @@ def extract_bearer_token() -> str | None:
 
 def validate_api_key(token: str) -> AuthContext | None:
     if token in _configured_keys():
-        return AuthContext(method="api_key", subject=token[:8])
+        return AuthContext(method="api_key", subject=credential_fingerprint(token, prefix="key"))
     return None
 
 

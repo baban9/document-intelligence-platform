@@ -4,6 +4,7 @@ from flask import Flask, jsonify
 
 from docintel import __version__
 from docintel.config import Config
+from docintel.ops.secrets import sensitive_config_keys
 from docintel.auth.limiter import init_limiter
 from docintel.auth.middleware import register_auth
 from docintel.ops.logging import configure_logging
@@ -20,6 +21,8 @@ from docintel.routes.text import text_bp
 def create_app(config: type[Config] = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config)
+    for secret_key in sensitive_config_keys():
+        app.config.pop(secret_key, None)
 
     configure_logging(config.LOG_LEVEL)
     register_request_hooks(app)

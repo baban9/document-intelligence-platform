@@ -38,6 +38,8 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCINTEL_SPACY_MODEL: ${DOCINTEL_SPACY_MODEL:-en_core_web_lg}
+      DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:
@@ -48,7 +50,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 45s
+      start_period: 120s
 
   worker:
     image: docintel-platform:${DOCINTEL_DOCKER_TARGET:-slim}
@@ -69,6 +71,8 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCINTEL_SPACY_MODEL: ${DOCINTEL_SPACY_MODEL:-en_core_web_lg}
+      DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:

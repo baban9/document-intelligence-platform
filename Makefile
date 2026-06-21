@@ -36,11 +36,11 @@ setup-ocr:
 	$(PIP) install -e ".[pii]"
 	$(PIP) install torch --index-url https://download.pytorch.org/whl/cpu
 	$(PIP) install -e ".[ocr]"
-	$(PYTHON) -m spacy download en_core_web_sm
+	$(PYTHON) -m spacy download en_core_web_lg
 
 setup-pii:
 	$(PIP) install -e ".[pii]"
-	$(PYTHON) -m spacy download en_core_web_sm
+	$(PYTHON) -m spacy download en_core_web_lg
 
 setup-llm:
 	$(PIP) install -e ".[llm]"

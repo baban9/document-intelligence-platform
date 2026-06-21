@@ -12,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DOCINTEL_HOST=0.0.0.0 \
     DOCINTEL_PORT=5000 \
     DOCINTEL_UPLOAD_DIR=/app/uploads \
+    DOCINTEL_SPACY_MODEL=en_core_web_lg \
     WEB_CONCURRENCY=1
 
 WORKDIR /app
@@ -21,7 +22,8 @@ COPY src ./src
 
 RUN pip install --upgrade pip \
     && pip install -e ".[jobs,auth,documents,pii,llm]" \
-    && python -m spacy download en_core_web_sm
+    && python -m spacy download en_core_web_lg \
+    && python -c "import spacy; spacy.load('en_core_web_lg')"
 
 RUN mkdir -p /app/uploads
 

@@ -105,7 +105,7 @@ def _build_extraction_report(extraction, *, selected: ProcessOptions, analysis_t
     preview = analysis_text[: selected.text_preview_chars]
     if len(analysis_text) > selected.text_preview_chars:
         preview += "\n...(truncated)"
-    return {
+    report: dict[str, Any] = {
         "kind": extraction.kind.value,
         "mime_type": extraction.mime_type,
         "text_preview": preview,
@@ -114,6 +114,9 @@ def _build_extraction_report(extraction, *, selected: ProcessOptions, analysis_t
         "segment_count": len(extraction.segments),
         "large_document": large,
     }
+    if extraction.segments:
+        report["segments"] = extraction.segments
+    return report
 
 
 def process_document(

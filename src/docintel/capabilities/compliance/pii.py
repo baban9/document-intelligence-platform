@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Sequence
 
 from docintel.capabilities.compliance.presets import DEFAULT_PII_ENTITIES
+
+logger = logging.getLogger("docintel.pii")
+
+DEFAULT_SPACY_MODEL = "en_core_web_lg"
+
+
+def spacy_model_name() -> str:
+    """spaCy model Presidio should load (must be installed in the runtime image)."""
+    return os.getenv("DOCINTEL_SPACY_MODEL", DEFAULT_SPACY_MODEL).strip() or DEFAULT_SPACY_MODEL
 
 
 @dataclass(frozen=True)
@@ -32,8 +43,25 @@ class PIIHit:
 @lru_cache(maxsize=1)
 def _analyzer_engine():
     from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-    return AnalyzerEngine()
+    model_name = spacy_model_name()
+    configuration = {
+        "nlp_engine_name": "spacy",
+        "models": [{"lang_code": "en", "model_name": model_name}],
+    }
+    provider = NlpEngineProvider(nlp_configuration=configuration)
+    nlp_engine = provider.create_engine()
+    logger.info("Presidio analyzer ready with spaCy model %s", model_name)
+    return AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
+
+
+def warm_pii_analyzer() -> None:
+    """Load Presidio and spaCy at startup so the first API or job request is fast."""
+    try:
+        _analyzer_engine()
+    except Exception as exc:
+        logger.warning("PII analyzer warm-up skipped: %s", exc)
 
 
 def detect_pii_in_text(

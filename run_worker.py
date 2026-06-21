@@ -33,6 +33,11 @@ def main() -> None:
 
     configure_logging(os.getenv("DOCINTEL_LOG_LEVEL", "INFO"))
 
+    if os.getenv("DOCINTEL_WARM_PII", "true").lower() != "false":
+        from docintel.capabilities.compliance.pii import warm_pii_analyzer
+
+        warm_pii_analyzer()
+
     connection = Redis.from_url(redis_url())
     queue = Queue(QUEUE_NAME, connection=connection)
     worker_cls = _worker_class()

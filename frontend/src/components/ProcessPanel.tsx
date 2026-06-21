@@ -24,7 +24,7 @@ export function ProcessPanel() {
   const [sentences, setSentences] = useState(3);
   const [includeSummary, setIncludeSummary] = useState(true);
   const [includePii, setIncludePii] = useState(true);
-  const [includeText, setIncludeText] = useState(false);
+  const [includeText, setIncludeText] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
@@ -76,98 +76,106 @@ export function ProcessPanel() {
   }
 
   return (
-    <section className="panel">
+    <section className="panel process-panel">
       <header className="panel-header">
         <h1>Process pipeline</h1>
         <p>Extract, classify, summarize, and scan for PII in one job.</p>
       </header>
 
-      <form className="process-form" onSubmit={onSubmit}>
-        <label className="field">
-          <span>Document upload</span>
-          <input
-            type="file"
-            accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.md,.json"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+      <div className="process-layout">
+        <form className="process-form process-controls" onSubmit={onSubmit}>
+          <label className="field">
+            <span>Document upload</span>
+            <input
+              type="file"
+              accept=".pdf,.docx,.xlsx,.pptx,.csv,.txt,.md,.json"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+
+          <div className="field-row">
+            <label className="field">
+              <span>Summary sentences ({sentences})</span>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={sentences}
+                onChange={(event) => setSentences(Number(event.target.value))}
+              />
+            </label>
+
+            <label className="field">
+              <span>PII vertical preset</span>
+              <select value={vertical} onChange={(event) => setVertical(event.target.value)}>
+                {VERTICAL_PRESETS.map((preset) => (
+                  <option key={preset || "none"} value={preset}>
+                    {preset ? titleCaseStatus(preset) : "None (manual selection)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="toggle-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={includeSummary}
+                onChange={(event) => setIncludeSummary(event.target.checked)}
+              />
+              Include summary
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={includePii}
+                onChange={(event) => setIncludePii(event.target.checked)}
+              />
+              Include PII scan
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeText}
+                onChange={(event) => setIncludeText(event.target.checked)}
+              />
+              Include extracted text
+            </label>
+          </div>
+
+          <p className="selection-summary">
+            {summarizeSelection(selectedIds, options, vertical)}
+          </p>
+
+          <EntityChipPicker
+            options={options}
+            selectedIds={selectedIds}
+            disabled={presetActive}
+            onChange={setSelectedIds}
           />
-        </label>
 
-        <div className="field-row">
-          <label className="field">
-            <span>Summary sentences ({sentences})</span>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={sentences}
-              onChange={(event) => setSentences(Number(event.target.value))}
-            />
-          </label>
+          <button type="submit" className="primary-button" disabled={loading}>
+            {loading ? "Processing..." : "Process document"}
+          </button>
 
-          <label className="field">
-            <span>PII vertical preset</span>
-            <select value={vertical} onChange={(event) => setVertical(event.target.value)}>
-              {VERTICAL_PRESETS.map((preset) => (
-                <option key={preset || "none"} value={preset}>
-                  {preset ? titleCaseStatus(preset) : "None (manual selection)"}
-                </option>
-              ))}
-            </select>
-          </label>
+          {progress && loading ? <ProgressBanner progress={progress} /> : null}
+          {error ? <p className="error-banner">{error}</p> : null}
+        </form>
+
+        <div className="process-results-pane">
+          {result ? (
+            <div className="result-card process-results-card">
+              <ProcessResultView result={result} />
+            </div>
+          ) : (
+            <div className="process-results-placeholder">
+              <h2>Results</h2>
+              <p>Upload a document and click Process document to see summary, PII, classification, and extracted text in tabs.</p>
+            </div>
+          )}
         </div>
-
-        <div className="toggle-row">
-          <label>
-            <input
-              type="checkbox"
-              checked={includeSummary}
-              onChange={(event) => setIncludeSummary(event.target.checked)}
-            />
-            Include summary
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={includePii}
-              onChange={(event) => setIncludePii(event.target.checked)}
-            />
-            Include PII scan
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={includeText}
-              onChange={(event) => setIncludeText(event.target.checked)}
-            />
-            Include extracted text
-          </label>
-        </div>
-
-        <p className="selection-summary">
-          {summarizeSelection(selectedIds, options, vertical)}
-        </p>
-
-        <EntityChipPicker
-          options={options}
-          selectedIds={selectedIds}
-          disabled={presetActive}
-          onChange={setSelectedIds}
-        />
-
-        <button type="submit" className="primary-button" disabled={loading}>
-          {loading ? "Processing..." : "Process document"}
-        </button>
-      </form>
-
-      {progress && loading ? <ProgressBanner progress={progress} /> : null}
-
-      {error ? <p className="error-banner">{error}</p> : null}
-
-      {result ? (
-        <div className="result-card">
-          <ProcessResultView result={result} />
-        </div>
-      ) : null}
+      </div>
     </section>
   );
 }

@@ -1,5 +1,7 @@
 """Flask application factory."""
 
+import os
+
 from flask import Flask, jsonify
 
 from docintel import __version__
@@ -46,5 +48,10 @@ def create_app(config: type[Config] = Config) -> Flask:
     app.register_blueprint(batch_bp)
     app.register_blueprint(text_bp)
     app.register_blueprint(ops_bp)
+
+    if os.getenv("DOCINTEL_WARM_PII", "true").lower() != "false":
+        from docintel.capabilities.compliance.pii import warm_pii_analyzer
+
+        warm_pii_analyzer()
 
     return app

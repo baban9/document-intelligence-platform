@@ -10,7 +10,13 @@ from werkzeug.utils import secure_filename
 
 from docintel.auth.limiter import limiter
 from docintel.capabilities.extraction.formats import identify_document
-from docintel.routes.document_upload import is_pdf_upload, parse_async_flag, pdf_required_message, read_upload
+from docintel.routes.document_upload import (
+    is_pdf_upload,
+    job_dir,
+    parse_async_flag,
+    pdf_required_message,
+    read_upload,
+)
 from docintel.services.pdf import (
     Action,
     DEFAULT_PII_ENTITIES,
@@ -40,7 +46,7 @@ def _storage():
 
 
 def _job_dir(job_id: str) -> Path:
-    return _storage().job_dir(job_id)
+    return job_dir(job_id)
 
 
 def _parse_pages(raw_pages: str | None) -> list[int] | None:

@@ -85,6 +85,7 @@ services:
       DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
       DOCINTEL_DATABASE_URL: ${DOCINTEL_DATABASE_URL:-postgresql://docintel:docintel@postgres:5432/docintel}
       DOCINTEL_MULTI_TENANT: ${DOCINTEL_MULTI_TENANT:-true}
+      DOCINTEL_SETTINGS_ENCRYPTION_KEY: ${DOCINTEL_SETTINGS_ENCRYPTION_KEY:-}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:
@@ -124,6 +125,7 @@ services:
       DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
       DOCINTEL_DATABASE_URL: ${DOCINTEL_DATABASE_URL:-postgresql://docintel:docintel@postgres:5432/docintel}
       DOCINTEL_MULTI_TENANT: ${DOCINTEL_MULTI_TENANT:-true}
+      DOCINTEL_SETTINGS_ENCRYPTION_KEY: ${DOCINTEL_SETTINGS_ENCRYPTION_KEY:-}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:

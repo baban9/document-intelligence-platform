@@ -10,6 +10,7 @@ from typing import Any
 
 import fitz
 
+from docintel.capabilities.extraction.ocr import build_indexed_text, extract_page_ocr, page_has_native_text
 from docintel.capabilities.pdf.page_edit_llm import edit_page_text_with_llm
 
 WORKING_FILENAME = "working.pdf"
@@ -106,12 +107,29 @@ def render_page_preview(pdf_path: Path, page_index: int, output_path: Path) -> N
         pdf.close()
 
 
-def extract_page_text(pdf_path: Path, page_index: int) -> str:
+def _ensure_ocr_stack() -> None:
+    try:
+        import easyocr  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "OCR dependencies are not installed. Run: pip install -e '.[ocr]'"
+        ) from exc
+
+
+def extract_page_text(pdf_path: Path, page_index: int, *, force_ocr: bool = False) -> tuple[str, str]:
+    """Return page text and source label (native or ocr)."""
     pdf = fitz.open(pdf_path)
     try:
         if page_index < 0 or page_index >= pdf.page_count:
             raise ValueError(f"Page index out of range: {page_index}")
-        return pdf[page_index].get_text("text")
+        page = pdf[page_index]
+        use_ocr = force_ocr or not page_has_native_text(page)
+        if use_ocr:
+            _ensure_ocr_stack()
+            spans = extract_page_ocr(page)
+            text, _ = build_indexed_text(spans)
+            return text, "ocr"
+        return page.get_text("text"), "native"
     finally:
         pdf.close()
 
@@ -151,12 +169,13 @@ def page_state(session: EditorSession, page_index: int) -> dict[str, Any]:
     if not preview.is_file():
         render_page_preview(session.working_path, page_index, preview)
 
-    text = extract_page_text(session.working_path, page_index)
+    text, text_source = extract_page_text(session.working_path, page_index)
     return {
         "session_id": session.session_id,
         "page": page_index,
         "page_count": session.page_count,
         "text": text,
+        "text_source": text_source,
         "preview_url": f"/v1/pdf/editor/session/{session.session_id}/pages/{page_index}/preview",
         "pages_edited": sorted(set(session.pages_edited)),
         "download_url": session.to_dict()["download_url"],
@@ -165,7 +184,7 @@ def page_state(session: EditorSession, page_index: int) -> dict[str, Any]:
 
 def apply_page_edit(session: EditorSession, page_index: int, instruction: str) -> dict[str, Any]:
     """Use the LLM to edit one page and refresh the working PDF."""
-    current_text = extract_page_text(session.working_path, page_index)
+    current_text, _ = extract_page_text(session.working_path, page_index)
     edited_text, changes_summary = edit_page_text_with_llm(page_index, current_text, instruction)
     rewrite_page_text(session.working_path, page_index, edited_text)
     if page_index not in session.pages_edited:

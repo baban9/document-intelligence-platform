@@ -549,6 +549,48 @@ def run_summarize_document_job(
     )
 
 
+def run_understand_document_job(
+    *,
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    sentences: int,
+    include_summary: bool,
+    include_pii: bool,
+    entities: list[str] | None = None,
+    min_score: float = 0.35,
+) -> dict:
+    from docintel.capabilities.understanding.understand import understand_document
+
+    update_job(
+        job_id,
+        job_status=JobStatus.RUNNING.value,
+        progress=20,
+        progress_message="Understanding document",
+    )
+    try:
+        result = understand_document(
+            Path(input_path),
+            filename=filename,
+            content_type=content_type,
+            sentences=sentences,
+            include_summary=include_summary,
+            include_pii=include_pii,
+            entities=entities,
+            min_score=min_score,
+        )
+        result_payload = result.to_dict()
+    except Exception as exc:
+        _fail_text_job(job_id=job_id, exc=exc)
+        raise
+    return _complete_text_job(
+        job_id=job_id,
+        progress_message="Job completed",
+        result_payload=result_payload,
+    )
+
+
 def run_detect_pii_document_job(
     *,
     job_id: str,

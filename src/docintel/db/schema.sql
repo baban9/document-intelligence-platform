@@ -21,3 +21,17 @@ CREATE TABLE IF NOT EXISTS tenant_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
+    tenant_slug VARCHAR(64) NOT NULL,
+    action VARCHAR(128) NOT NULL,
+    actor VARCHAR(128) NOT NULL DEFAULT '',
+    resource_type VARCHAR(64) NOT NULL DEFAULT '',
+    resource_id VARCHAR(128) NOT NULL DEFAULT '',
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_created ON audit_log(tenant_slug, created_at DESC);

@@ -11,6 +11,7 @@ export function UnderstandPanel() {
   const [includeSummary, setIncludeSummary] = useState(true);
   const [includePii, setIncludePii] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
@@ -22,17 +23,21 @@ export function UnderstandPanel() {
     }
     setLoading(true);
     setError(null);
+    setProgressMessage(null);
     setResult(null);
     try {
       const options = { sentences, includeSummary, includePii };
       const payload = file
-        ? await understandDocument(file, options)
+        ? await understandDocument(file, options, (update) => {
+            setProgressMessage(update.message || "Processing...");
+          })
         : await understandText(text.trim(), options);
       setResult(payload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Document understanding failed.");
     } finally {
       setLoading(false);
+      setProgressMessage(null);
     }
   }
 
@@ -95,7 +100,7 @@ export function UnderstandPanel() {
         </div>
 
         <button type="submit" className="primary-button" disabled={loading}>
-          {loading ? "Analyzing..." : "Understand document"}
+          {loading ? progressMessage || "Analyzing..." : "Understand document"}
         </button>
       </form>
 

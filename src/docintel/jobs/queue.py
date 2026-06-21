@@ -288,6 +288,32 @@ def enqueue_extract_text_job(
     )
 
 
+def enqueue_understand_document_job(
+    job_id: str,
+    input_path: str,
+    filename: str,
+    content_type: str | None,
+    *,
+    sentences: int,
+    include_summary: bool,
+    include_pii: bool,
+    entities: list[str] | None = None,
+    min_score: float = 0.35,
+) -> None:
+    _enqueue_docintel_job(
+        "docintel.jobs.tasks.run_understand_document_job",
+        job_id,
+        input_path=input_path,
+        filename=filename,
+        content_type=content_type,
+        sentences=sentences,
+        include_summary=include_summary,
+        include_pii=include_pii,
+        entities=entities,
+        min_score=min_score,
+    )
+
+
 def enqueue_s3_document_process_job(
     job_id: str,
     bucket: str,

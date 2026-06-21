@@ -75,7 +75,8 @@ def parse_async_flag() -> bool:
     return str(raw).strip().lower() == "true"
 
 
-def job_dir(job_id: str) -> Path:
+def job_dir(job_id: str, tenant_slug: str | None = None) -> Path:
     from docintel.storage import get_storage
+    from docintel.storage.tenant_path import resolve_storage_tenant_slug
 
-    return get_storage().job_dir(job_id)
+    return get_storage().job_dir(job_id, tenant_slug=resolve_storage_tenant_slug(tenant_slug))

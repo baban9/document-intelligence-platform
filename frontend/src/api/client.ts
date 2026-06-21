@@ -410,12 +410,19 @@ export async function understandText(
 export async function understandDocument(
   file: File,
   options: UnderstandOptions,
+  onProgress?: (update: ProgressUpdate) => void,
 ): Promise<JsonRecord> {
   const form = new FormData();
   form.append("file", file);
   form.append("sentences", String(options.sentences));
   form.append("include_summary", String(options.includeSummary));
   form.append("include_pii", String(options.includePii));
+
+  const asyncBytes = 512 * 1024;
+  if (file.size >= asyncBytes) {
+    return postFormAsync("/v1/documents/understand", form, onProgress);
+  }
+
   const response = await apiFetch(`${API_BASE}/v1/documents/understand`, {
     method: "POST",
     body: form,

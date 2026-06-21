@@ -36,6 +36,7 @@ class JobType(str, Enum):
     DOCUMENT_EXTRACT_TEXT = "document_extract_text"
     DOCUMENT_COMPARE = "document_compare"
     DOCUMENT_INTEGRITY = "document_integrity"
+    DOCUMENT_UNDERSTAND = "document_understand"
     TEXT_INTEGRITY = "text_integrity"
     DOCUMENT_S3_PROCESS = "document_s3_process"
     BATCH = "batch"

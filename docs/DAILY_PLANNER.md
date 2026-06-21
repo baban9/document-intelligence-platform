@@ -2,7 +2,7 @@
 
 Action plan broken into small tasks. Each major block maps to a commit on `main`.
 
-Last updated: 2026-06-21
+Last updated: 2026-06-18
 
 ---
 
@@ -37,9 +37,9 @@ Last updated: 2026-06-21
 ### Multi-tenant hardening
 
 1. Pass `X-Tenant-Slug` into async job payload and restore context in worker | done |
-2. Encrypt `llm_api_key` at rest in PostgreSQL
-3. Tenant-scoped upload paths (`uploads/{tenant_id}/...`)
-4. Audit log table: tenant, action, user, timestamp
+2. Encrypt `llm_api_key` at rest in PostgreSQL | done |
+3. Tenant-scoped upload paths (`uploads/{tenant_id}/...`) | done |
+4. Audit log table: tenant, action, user, timestamp | done |
 
 ### Settings UX
 
@@ -49,14 +49,14 @@ Last updated: 2026-06-21
 
 ### AI PDF editor v2
 
-8. OCR fallback before page edit (scanned PDFs)
+8. OCR fallback before page edit (scanned PDFs) | done |
 9. Diff preview before applying LLM edit
 10. Per-page edit history (undo)
 
 ### Product
 
 11. Export checked PII rows from Process pipeline (CSV) | done |
-12. Understand document: async job for large uploads
+12. Understand document: async job for large uploads | done |
 13. OpenAPI entries for `/v1/tenants/*` | done |
 
 ---
@@ -101,5 +101,5 @@ Default UI tenant: `acme-corp`. Admin tenant sees all tenants in the dropdown.
 ## Suggested next commit message
 
 ```
-Add tenant-scoped upload paths and audit log table
+Harden multi-tenant storage, encrypt API keys, and add async understand
 ```

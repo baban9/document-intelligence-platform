@@ -6,7 +6,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from docintel.db.audit import record_audit_event
 from docintel.db.connection import database_enabled, get_connection
+from docintel.db.secrets import decrypt_secret, encrypt_secret
 
 
 @dataclass(frozen=True)
@@ -80,7 +82,7 @@ def _row_to_settings(row) -> TenantSettingsRecord:
         llm_provider=str(row[4] or "ollama"),
         llm_model=str(row[5] or ""),
         llm_base_url=str(row[6] or ""),
-        llm_api_key=str(row[8] or ""),
+        llm_api_key=decrypt_secret(str(row[8] or "")),
         pii_entities=[str(item) for item in entities],
     )
 
@@ -157,6 +159,7 @@ def update_tenant_settings(
     llm_base_url: str,
     llm_api_key: str | None,
     pii_entities: list[str],
+    actor: str = "",
 ) -> TenantSettingsRecord | None:
     if not database_enabled():
         return None
@@ -204,10 +207,23 @@ def update_tenant_settings(
                         llm_provider,
                         llm_model,
                         llm_base_url,
-                        llm_api_key,
+                        encrypt_secret(llm_api_key),
                         json.dumps(pii_entities),
                         tenant_id,
                     ),
                 )
 
+    record_audit_event(
+        tenant_slug=slug,
+        action="tenant_settings.update",
+        actor=actor,
+        resource_type="tenant_settings",
+        resource_id=slug,
+        details={
+            "llm_provider": llm_provider,
+            "llm_model": llm_model,
+            "llm_api_key_updated": llm_api_key is not None,
+            "pii_entity_count": len(pii_entities),
+        },
+    )
     return get_tenant_settings(slug)

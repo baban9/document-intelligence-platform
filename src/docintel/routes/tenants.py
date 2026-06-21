@@ -113,6 +113,7 @@ def put_settings(slug: str):
         llm_base_url=base_url,
         llm_api_key=api_key,
         pii_entities=entities,
+        actor=viewer.slug,
     )
     if updated is None:
         return jsonify({"error": "Tenant not found."}), 404

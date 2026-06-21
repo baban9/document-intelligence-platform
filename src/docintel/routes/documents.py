@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -26,6 +27,8 @@ from docintel.routes.document_upload import job_dir, parse_async_flag, read_uplo
 from docintel.routes.async_enqueue import enqueue_background_job
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/v1/documents")
+
+UNDERSTAND_ASYNC_BYTES = int(os.getenv("DOCINTEL_UNDERSTAND_ASYNC_BYTES", "524288"))
 
 
 def _callback_url() -> str | None:
@@ -793,10 +796,29 @@ def understand_document_route():
     if options_error is not None:
         return jsonify(options_error), options_status
 
+    callback_url = _callback_url()
     upload = read_upload(request, "file")
     if upload is not None:
         job_id = uuid.uuid4().hex[:12]
         saved = save_upload(upload, job_dir(job_id))
+        file_size = saved.path.stat().st_size
+        run_async = parse_async_flag() or file_size >= UNDERSTAND_ASYNC_BYTES
+
+        if run_async:
+            from docintel.jobs.models import JobType
+            from docintel.jobs.queue import enqueue_understand_document_job
+
+            return enqueue_background_job(
+                job_type=JobType.DOCUMENT_UNDERSTAND,
+                callback_url=callback_url,
+                enqueue_fn=enqueue_understand_document_job,
+                job_id=job_id,
+                input_path=str(saved.path),
+                filename=saved.filename,
+                content_type=saved.content_type,
+                **options,
+            )
+
         try:
             result = understand_document(
                 saved.path,

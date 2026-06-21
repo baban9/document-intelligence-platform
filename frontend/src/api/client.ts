@@ -587,3 +587,19 @@ export async function fetchPiiEntityOptions(): Promise<{ entities: string[] }> {
     entities: Array.isArray(payload.entities) ? payload.entities.map(String) : [],
   };
 }
+
+export async function fetchPiiPresets(): Promise<Record<string, string[]>> {
+  const response = await apiFetch(`${API_BASE}/v1/pdf/presets`);
+  const payload = await parseJson(response);
+  const presets = payload.presets;
+  if (!presets || typeof presets !== "object" || Array.isArray(presets)) {
+    return {};
+  }
+  const mapped: Record<string, string[]> = {};
+  for (const [name, entities] of Object.entries(presets as JsonRecord)) {
+    if (Array.isArray(entities)) {
+      mapped[name] = entities.map(String);
+    }
+  }
+  return mapped;
+}

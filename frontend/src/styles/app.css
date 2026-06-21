@@ -687,3 +687,13 @@ nav {
   padding: 0 0.35rem;
   font-weight: 600;
 }
+
+.settings-model-row {
+  align-items: end;
+}
+
+.settings-masked-key {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  color: #166534;
+}

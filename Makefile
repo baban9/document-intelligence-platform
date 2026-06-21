@@ -102,6 +102,7 @@ env-init:
 	fi
 
 # Fail early when host ports are taken (avoids opaque docker bind errors).
+# Skips ports still held by this compose project (run make down first to recycle).
 check-ports:
 	@for spec in \
 		"DOCINTEL_PORT:$${DOCINTEL_PORT:-5000}:API" \
@@ -109,11 +110,16 @@ check-ports:
 		name=$${spec%%:*}; rest=$${spec#*:}; \
 		port=$${rest%%:*}; label=$${rest#*:}; \
 		if lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1; then \
-			echo "Port $$port ($$label) is already in use."; \
-			echo "Edit .env (run: make env-init) and set $$name to a free port, then run make up again."; \
-			echo "Example: $$name=5001"; \
-			lsof -nP -iTCP:$$port -sTCP:LISTEN | head -3; \
-			exit 1; \
+			if $(COMPOSE) --profile ui ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$$port->"; then \
+				echo "Port $$port ($$label) is in use by this stack; recycling containers..."; \
+			else \
+				echo "Port $$port ($$label) is already in use."; \
+				echo "If a previous stack is running: make down"; \
+				echo "Or edit .env (make env-init) and set $$name to a free port."; \
+				echo "Example: $$name=5002"; \
+				lsof -nP -iTCP:$$port -sTCP:LISTEN | head -3; \
+				exit 1; \
+			fi; \
 		fi; \
 	done
 
@@ -121,7 +127,7 @@ check-ports:
 # Use make up-ocr for scanned PDF OCR (large PyTorch download).
 up: docker-up-local
 
-up-ocr: check-ports
+up-ocr: docker-down check-ports
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
 	@$(MAKE) --no-print-directory up-status
 
@@ -166,11 +172,11 @@ docker-up-ui:
 docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
-docker-up-local: check-ports
+docker-up-local: docker-down check-ports
 	$(COMPOSE) --profile ui up -d --build
 	@$(MAKE) --no-print-directory up-status
 
-docker-up-full:
+docker-up-full: docker-down
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
 	@$(MAKE) --no-print-directory up-status
 
@@ -189,7 +195,7 @@ docker-logs-ui:
 generate-corpus:
 	$(PYTHON) scripts/generate_test_corpus.py
 
-scale-test-up: check-ports
+scale-test-up: docker-down check-ports
 	$(COMPOSE) -f docker-compose.yml -f docker-compose.scale-test.yml up -d --build redis api worker
 	@echo ""
 	@echo "Scale test stack (500 MB RAM cap on api + worker). Generate corpus: make generate-corpus"

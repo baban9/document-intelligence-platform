@@ -90,7 +90,7 @@ def detect_pii_in_text(
     if not text.strip():
         return []
 
-    selected_entities = list(entities) if entities else list(DEFAULT_PII_ENTITIES)
+    selected_entities = resolve_pii_entities(entities)
     analyzer = _analyzer_engine()
     results = analyzer.analyze(
         text=text,

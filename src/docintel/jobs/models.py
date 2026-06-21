@@ -54,6 +54,7 @@ class JobRecord:
     download_url: str | None = None
     error: str | None = None
     result: dict[str, Any] = field(default_factory=dict)
+    tenant_slug: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -73,10 +74,13 @@ class JobRecord:
             payload["error"] = self.error
         if self.result:
             payload["result"] = self.result
+        if self.tenant_slug:
+            payload["tenant_slug"] = self.tenant_slug
         return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "JobRecord":
+        tenant_slug = payload.get("tenant_slug")
         return cls(
             job_id=str(payload["job_id"]),
             job_type=JobType(payload["job_type"]),
@@ -89,4 +93,5 @@ class JobRecord:
             download_url=payload.get("download_url"),
             error=payload.get("error"),
             result=dict(payload.get("result") or {}),
+            tenant_slug=str(tenant_slug).strip() if tenant_slug else None,
         )

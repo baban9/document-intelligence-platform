@@ -28,7 +28,7 @@ Last updated: 2026-06-21
 | 1 | Rebuild stack: `docker compose build && make down && LOGS=0 make up` | dev | [ ] |
 | 2 | Smoke: switch tenants in sidebar, save LLM + PII in Settings | QA | [ ] |
 | 3 | Smoke: AI PDF editor with in-docker Ollama | QA | [ ] |
-| 4 | Run pytest with Postgres: `DOCINTEL_DATABASE_URL=... DOCINTEL_MULTI_TENANT=true make test` | dev | [ ] |
+| 4 | Run tenant Postgres tests: `make test-postgres` | dev | [ ] |
 
 ---
 
@@ -93,7 +93,7 @@ Default UI tenant: `acme-corp`. Admin tenant sees all tenants in the dropdown.
 - [x] Non-admin tenants isolated from other tenant settings
 - [x] Admin tenant can manage all tenants
 - [x] Ollama runs inside Docker Compose
-- [ ] Async jobs respect tenant context in worker
+- [x] Async jobs respect tenant context in worker
 - [ ] E2E smoke with Postgres enabled in CI
 
 ---

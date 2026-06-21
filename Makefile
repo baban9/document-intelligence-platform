@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test test-postgres eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -78,6 +78,16 @@ ui-build:
 
 test:
 	$(PYTEST) tests/ -q
+
+# Requires Postgres (make up or docker compose up -d postgres).
+test-postgres:
+	@if [ -z "$$DOCINTEL_DATABASE_URL" ]; then \
+		export DOCINTEL_DATABASE_URL=postgresql://docintel:docintel@127.0.0.1:5432/docintel; \
+	fi; \
+	$(COMPOSE) up -d postgres; \
+	DOCINTEL_DATABASE_URL=$${DOCINTEL_DATABASE_URL:-postgresql://docintel:docintel@127.0.0.1:5432/docintel} \
+	DOCINTEL_MULTI_TENANT=true \
+	$(PYTEST) tests/test_tenant_context.py tests/test_tenant_routes.py tests/test_tenant_jobs.py -q
 
 eval:
 	$(PYTHON) eval/run_eval.py

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from docintel.jobs.store import redis_url
+from docintel.jobs.store import get_job, redis_url
 
 QUEUE_NAME = os.getenv("DOCINTEL_QUEUE_NAME", "docintel")
 DEFAULT_RESULT_TTL = 60 * 60 * 24
@@ -32,9 +32,11 @@ def _enqueue_docintel_job(
     passed through an explicit ``kwargs`` mapping.
     """
     queue = get_queue()
+    record = get_job(job_id)
+    tenant_slug = record.tenant_slug if record else None
     queue.enqueue(
         task_path,
-        kwargs={"job_id": job_id, **task_kwargs},
+        kwargs={"job_id": job_id, "tenant_slug": tenant_slug, **task_kwargs},
         job_id=job_id,
         job_timeout=job_timeout,
         result_ttl=DEFAULT_RESULT_TTL,

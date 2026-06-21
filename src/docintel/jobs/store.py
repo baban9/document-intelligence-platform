@@ -86,6 +86,7 @@ def update_job(job_id: str, **changes) -> JobRecord:
         download_url=changes.get("download_url", record.download_url),
         error=changes.get("error", record.error),
         result=changes.get("result", record.result),
+        tenant_slug=changes.get("tenant_slug", record.tenant_slug),
     )
     save_job(updated)
     if record.status != updated.status:

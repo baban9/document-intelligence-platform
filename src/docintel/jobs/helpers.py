@@ -7,6 +7,7 @@ from flask import jsonify
 from docintel.jobs.models import JobType
 from docintel.jobs.store import jobs_enabled, ping_redis
 from docintel.jobs.tasks import create_queued_job
+from docintel.tenants.context import current_tenant_slug
 
 
 def enqueue_async_response(
@@ -14,6 +15,7 @@ def enqueue_async_response(
     job_id: str,
     job_type: JobType,
     callback_url: str | None,
+    tenant_slug: str | None = None,
 ):
     """Validate Redis and return a standard 202 async job payload."""
     if not jobs_enabled():
@@ -26,7 +28,12 @@ def enqueue_async_response(
             }
         ), 503
 
-    create_queued_job(job_id, job_type=job_type, callback_url=callback_url)
+    create_queued_job(
+        job_id,
+        job_type=job_type,
+        callback_url=callback_url,
+        tenant_slug=tenant_slug or current_tenant_slug(),
+    )
     payload = {
         "status": "ok",
         "job_id": job_id,

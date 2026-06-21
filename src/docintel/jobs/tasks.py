@@ -763,6 +763,7 @@ def create_queued_job(
     *,
     job_type: JobType,
     callback_url: str | None = None,
+    tenant_slug: str | None = None,
 ) -> JobRecord:
     record = JobRecord(
         job_id=job_id,
@@ -771,6 +772,20 @@ def create_queued_job(
         progress=0,
         progress_message="Queued",
         callback_url=callback_url,
+        tenant_slug=tenant_slug,
     )
     save_job(record)
     return record
+
+
+def _wrap_worker_jobs() -> None:
+    from docintel.tenants.worker import bind_tenant_job
+
+    for name, value in list(globals().items()):
+        if name.startswith("run_") and callable(value) and not getattr(value, "__tenant_wrapped__", False):
+            wrapped = bind_tenant_job(value)
+            wrapped.__tenant_wrapped__ = True  # type: ignore[attr-defined]
+            globals()[name] = wrapped
+
+
+_wrap_worker_jobs()

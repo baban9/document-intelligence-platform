@@ -37,6 +37,29 @@ def get_tenant_context() -> TenantContext | None:
     return _tenant_settings.get()
 
 
+def current_tenant_slug() -> str | None:
+    """Return the active tenant slug from Flask request context when available."""
+    try:
+        from flask import g, has_request_context, request
+
+        if not has_request_context():
+            return None
+
+        tenant = getattr(g, "tenant", None)
+        if tenant is not None:
+            return tenant.slug
+
+        from docintel.tenants.middleware import DEFAULT_TENANT_SLUG, TENANT_HEADER, multi_tenant_enabled
+
+        if multi_tenant_enabled():
+            raw = request.headers.get(TENANT_HEADER, DEFAULT_TENANT_SLUG)
+            cleaned = raw.strip() if isinstance(raw, str) else ""
+            return cleaned or DEFAULT_TENANT_SLUG
+    except Exception:
+        return None
+    return None
+
+
 def resolve_tenant_context(slug: str) -> TenantContext | None:
     tenant = get_tenant_by_slug(slug)
     if tenant is None:

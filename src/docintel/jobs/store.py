@@ -55,6 +55,9 @@ def save_job(record: JobRecord, ttl_seconds: int | None = None) -> None:
         from docintel.ops.prometheus import record_job_queued
 
         record_job_queued(record.job_type.value)
+        from docintel.ops.job_logging import emit_job_store_log
+
+        emit_job_store_log(None, record, {})
 
 
 def get_job(job_id: str) -> JobRecord | None:
@@ -94,6 +97,9 @@ def update_job(job_id: str, **changes) -> JobRecord:
             record.status.value,
             updated.status.value,
         )
+    from docintel.ops.job_logging import emit_job_store_log
+
+    emit_job_store_log(record, updated, changes)
     return updated
 
 

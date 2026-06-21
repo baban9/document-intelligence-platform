@@ -20,7 +20,7 @@ git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth (see DOCINTEL_PORT if :5000 is busy)
 make env-init          # creates .env when missing
-make up                # Redis, API, worker, UI, Prometheus, Grafana (slim, fast build)
+make up                # Redis, API, worker, Gradio UI (slim, fast build)
 ```
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
@@ -29,16 +29,13 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 
 | Command | What starts |
 |---------|-------------|
-| `make up` | **Full local stack:** Redis, slim API, worker, Gradio UI, Prometheus, Grafana |
+| `make up` | **Full local stack:** Redis, slim API, worker, Gradio UI |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
 | `make docker-up` | Slim core only: Redis, API, worker (no PyTorch, faster build) |
 | `make docker-up-ui` | Add Gradio when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |
-| `make docker-up-monitoring` | Slim core + Prometheus + Grafana (no UI) |
-| `make docker-up-full` | OCR stack + UI (no monitoring) |
-| `make docker-up-monitoring-full` | Same as `make up` |
-| `make docker-up-monitoring-ocr` | Same as `make up-ocr` |
+| `make docker-up-full` | OCR stack + UI |
 
 | Service | URL |
 |---------|-----|
@@ -46,8 +43,6 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 | Interactive API docs | http://127.0.0.1:5000/docs |
 | Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
-| Prometheus | http://127.0.0.1:9090 (with `make up`) |
-| Grafana | http://127.0.0.1:3000 (default login `admin` / `admin`) |
 | Metrics scrape | http://127.0.0.1:5000/metrics?format=prometheus |
 
 Gradio includes a **Document process** tab (unified pipeline) and a **Document integrity** tab (gap and consistency checks). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
@@ -166,17 +161,9 @@ export GEMINI_API_KEY=your-key
 
 ### Monitoring (Prometheus + Grafana)
 
-The API exports Prometheus metrics at `GET /metrics?format=prometheus`. For integration with your own Prometheus, Grafana Cloud, Kubernetes, or Datadog, see **[docs/MONITORING.md](docs/MONITORING.md)**.
+The API exports Prometheus metrics at `GET /metrics?format=prometheus`. The worker and API emit JSON logs to stdout. Wire both into **your own** Prometheus, Grafana, Loki, or vendor stack. See **[docs/MONITORING.md](docs/MONITORING.md)**.
 
-Quick local demo with bundled Prometheus and Grafana:
-
-```bash
-make up
-```
-
-Open Grafana at http://127.0.0.1:3000. The **Document Intelligence - App Performance** dashboard is provisioned automatically.
-
-Copy-paste configs for external stacks live under `monitoring/` (scrape examples, alert rules, Kubernetes ServiceMonitor, Grafana dashboard JSON).
+Example configs live under `monitoring/` (scrape snippets, alert rules, Kubernetes ServiceMonitor, Grafana dashboard JSON, Loki/Promtail samples).
 
 ---
 
@@ -188,6 +175,7 @@ Copy-paste configs for external stacks live under `monitoring/` (scrape examples
 | [docs/PLATFORM.md](docs/PLATFORM.md) | Jobs, auth, storage, ops layout |
 | [docs/MONITORING.md](docs/MONITORING.md) | Prometheus, Grafana, Kubernetes, and third-party integration |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Checklist, latency, failure modes |
+| [docs/SCALE_TESTING.md](docs/SCALE_TESTING.md) | Corpus generation, 500 MB Docker limits, load testing |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones and history |
 | [docs/WEBHOOKS.md](docs/WEBHOOKS.md) | Async callbacks and S3 ingest |
 | [docs/adr/](docs/adr/) | Architecture decision records |

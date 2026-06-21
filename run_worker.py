@@ -29,6 +29,10 @@ def main() -> None:
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
 
+    from docintel.ops.logging import configure_logging
+
+    configure_logging(os.getenv("DOCINTEL_LOG_LEVEL", "INFO"))
+
     connection = Redis.from_url(redis_url())
     queue = Queue(QUEUE_NAME, connection=connection)
     worker_cls = _worker_class()

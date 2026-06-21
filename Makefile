@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -70,6 +70,13 @@ run-worker:
 run-ui:
 	$(PYTHON) run_ui.py
 
+# React + Vite UI (professional shell; Process pipeline first). Requires Node 20+.
+ui-dev:
+	cd frontend && npm install && npm run dev
+
+ui-build:
+	cd frontend && npm install && npm run build
+
 test:
 	$(PYTEST) tests/ -q
 
@@ -98,9 +105,7 @@ env-init:
 check-ports:
 	@for spec in \
 		"DOCINTEL_PORT:$${DOCINTEL_PORT:-5000}:API" \
-		"GRADIO_PORT:$${GRADIO_PORT:-7860}:Gradio UI" \
-		"PROMETHEUS_PORT:$${PROMETHEUS_PORT:-9090}:Prometheus" \
-		"GRAFANA_PORT:$${GRAFANA_PORT:-3000}:Grafana"; do \
+		"GRADIO_PORT:$${GRADIO_PORT:-7860}:Gradio UI"; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; \
 		port=$${rest%%:*}; label=$${rest#*:}; \
 		if lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1; then \
@@ -112,12 +117,12 @@ check-ports:
 		fi; \
 	done
 
-# Full local stack: Redis, slim API, worker, Gradio UI, Prometheus, Grafana.
+# Full local stack: Redis, slim API, worker, Gradio UI.
 # Use make up-ocr for scanned PDF OCR (large PyTorch download).
 up: docker-up-local
 
 up-ocr: check-ports
-	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui --profile monitoring up -d --build
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
 	@$(MAKE) --no-print-directory up-status
 
 down: docker-down
@@ -125,15 +130,16 @@ down: docker-down
 up-status:
 	@echo ""
 	@echo "Document Intelligence local stack (DOCINTEL_DOCKER_TARGET=$${DOCINTEL_DOCKER_TARGET:-slim})"
-	@$(COMPOSE) --profile ui --profile monitoring ps
+	@$(COMPOSE) --profile ui ps
 	@echo ""
 	@echo "URLs:"
 	@echo "  API        http://127.0.0.1:$${DOCINTEL_PORT:-5000}"
 	@echo "  API docs   http://127.0.0.1:$${DOCINTEL_PORT:-5000}/docs"
 	@echo "  Gradio UI  http://127.0.0.1:$${GRADIO_PORT:-7860}"
-	@echo "  Prometheus http://127.0.0.1:$${PROMETHEUS_PORT:-9090}"
-	@echo "  Grafana    http://127.0.0.1:$${GRAFANA_PORT:-3000}  (admin / admin)"
+	@echo "  React UI   http://127.0.0.1:5173  (make ui-dev, API must be running)"
+	@echo "  Metrics    http://127.0.0.1:$${DOCINTEL_PORT:-5000}/metrics?format=prometheus"
 	@echo "  Redis      localhost:$${REDIS_PORT:-6379}"
+	@echo "  Monitoring integration: docs/MONITORING.md"
 	@if [ "$${DOCINTEL_DOCKER_TARGET:-slim}" = "slim" ]; then \
 		echo ""; \
 		echo "Scanned PDF OCR is not in this image. Run: make up-ocr"; \
@@ -161,16 +167,7 @@ docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
 docker-up-local: check-ports
-	$(COMPOSE) --profile ui --profile monitoring up -d --build
-	@$(MAKE) --no-print-directory up-status
-
-docker-up-monitoring: check-ports
-	$(COMPOSE) --profile monitoring up -d --build redis api worker prometheus grafana
-
-docker-up-monitoring-full: docker-up-local
-
-docker-up-monitoring-ocr:
-	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui --profile monitoring up -d --build
+	$(COMPOSE) --profile ui up -d --build
 	@$(MAKE) --no-print-directory up-status
 
 docker-up-full:
@@ -178,7 +175,7 @@ docker-up-full:
 	@$(MAKE) --no-print-directory up-status
 
 docker-down:
-	$(COMPOSE) --profile ui --profile monitoring down
+	$(COMPOSE) --profile ui down
 
 docker-logs:
 	$(COMPOSE) logs -f
@@ -189,5 +186,18 @@ docker-logs-api:
 docker-logs-ui:
 	$(COMPOSE) logs -f ui
 
-docker-logs-monitoring:
-	$(COMPOSE) logs -f prometheus grafana
+generate-corpus:
+	$(PYTHON) scripts/generate_test_corpus.py
+
+scale-test-up: check-ports
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.scale-test.yml up -d --build redis api worker
+	@echo ""
+	@echo "Scale test stack (500 MB RAM cap on api + worker). Generate corpus: make generate-corpus"
+	@echo "Run load test: make scale-test"
+	@echo "Docs: docs/SCALE_TESTING.md"
+
+scale-test:
+	$(PYTHON) scripts/scale_test.py --report eval/reports/scale_report.json
+
+scale-test-down:
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.scale-test.yml down

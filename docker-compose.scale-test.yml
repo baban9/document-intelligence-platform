@@ -1,0 +1,19 @@
+# Memory-constrained scale testing overlay.
+# Use with: docker compose -f docker-compose.yml -f docker-compose.scale-test.yml up -d
+#
+# Caps API and worker at 500 MB RAM each (no swap). Redis stays small.
+# Intended for slim image only. OCR/torch will OOM at this limit.
+
+services:
+  api:
+    mem_limit: 500m
+    memswap_limit: 500m
+    environment:
+      WEB_CONCURRENCY: 1
+      DOCINTEL_LOG_LEVEL: INFO
+
+  worker:
+    mem_limit: 500m
+    memswap_limit: 500m
+    environment:
+      DOCINTEL_LOG_LEVEL: INFO

@@ -1,0 +1,195 @@
+:root {
+  color: #0f172a;
+  background: #ffffff;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  line-height: 1.55;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #ffffff;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #f8fafc;
+  border-right: 1px solid #cbd5e1;
+  padding: 1.25rem 0.9rem 1.5rem;
+}
+
+.brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.status,
+.sidebar-note {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+nav {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.nav-button {
+  text-align: left;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+}
+
+.nav-button-active {
+  border-color: #c2410c;
+  box-shadow: inset 3px 0 0 #c2410c;
+  font-weight: 600;
+}
+
+.nav-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.main-panel {
+  padding: 1.5rem 1.75rem 2rem;
+}
+
+.panel-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+
+.panel-header p {
+  margin: 0 0 1.25rem;
+  color: #475569;
+  max-width: 52rem;
+}
+
+.process-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 52rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.selection-summary {
+  margin: 0;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.chip-selected {
+  background: #fff7ed;
+  border-color: #c2410c;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px #c2410c;
+}
+
+.chip:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.primary-button {
+  width: fit-content;
+  border: none;
+  background: #c2410c;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.error-banner {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  max-width: 52rem;
+}
+
+.result-card {
+  margin-top: 1.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 1rem;
+  max-width: 52rem;
+}
+
+.result-card pre {
+  margin: 0;
+  overflow: auto;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+}

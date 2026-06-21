@@ -27,6 +27,26 @@ class SecretRedactionFilter(logging.Filter):
 class JsonFormatter(logging.Formatter):
     """Format log records as single-line JSON objects."""
 
+    _STRUCTURED_FIELDS = (
+        "method",
+        "path",
+        "status_code",
+        "duration_ms",
+        "endpoint",
+        "event",
+        "job_id",
+        "job_type",
+        "job_status",
+        "progress",
+        "progress_message",
+        "pages_done",
+        "pages_total",
+        "document_filename",
+        "finding_count",
+        "classification",
+        "error",
+    )
+
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -34,7 +54,7 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        for key in ("method", "path", "status_code", "duration_ms", "endpoint"):
+        for key in self._STRUCTURED_FIELDS:
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         if record.exc_info:

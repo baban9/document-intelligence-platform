@@ -36,12 +36,17 @@ build/
 uploads/
 outputs/
 eval/reports/
+eval/corpus/generated/
 *.log
 
 # Test / coverage
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Frontend (React + Vite)
+frontend/node_modules/
+frontend/dist/
 
 # Cursor IDE (local editor rules)
 .cursor/

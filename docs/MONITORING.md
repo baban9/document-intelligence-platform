@@ -1,6 +1,6 @@
 # Monitoring and observability
 
-Document Intelligence exposes Prometheus metrics from the API process. You can use the bundled Prometheus and Grafana stack for local demos, or connect your existing monitoring in a few minutes.
+Document Intelligence exposes Prometheus metrics and JSON logs from the API and worker. **Bring your own** Prometheus, Grafana, Loki, or vendor stack. Example configs live under `monitoring/`.
 
 ## Metrics endpoint
 
@@ -59,41 +59,13 @@ sum(rate(docintel_jobs_finished_total{status="failed"}[10m]))
 / clamp_min(sum(rate(docintel_jobs_finished_total[10m])), 0.001)
 ```
 
-## Choose an integration path
+## Integration paths
 
-### Option A: Bundled stack (fastest local setup)
-
-Starts Redis, API, worker, Gradio UI, Prometheus, and Grafana with a prebuilt dashboard.
-
-```bash
-make up
-```
-
-Scanned PDF OCR (downloads CPU PyTorch inside Docker; retry if the network drops):
-
-```bash
-make up-ocr
-```
-
-Monitoring only (slim API, no UI):
-
-```bash
-make docker-up-monitoring
-```
-
-| Service | URL |
-|---------|-----|
-| Grafana | http://127.0.0.1:3000 (default admin / admin) |
-| Prometheus | http://127.0.0.1:9090 |
-| Metrics scrape | http://127.0.0.1:5000/metrics?format=prometheus |
-
-Config files: `monitoring/prometheus/`, `monitoring/grafana/`.
-
-### Option B: Your own Prometheus
+### Prometheus
 
 1. Copy the scrape block from [monitoring/prometheus/scrape-config.example.yml](../monitoring/prometheus/scrape-config.example.yml).
 2. Paste it into your Prometheus `scrape_configs`.
-3. Replace `DOCINTEL_API_HOST` with your API host.
+3. Replace the target host with your API (for example `127.0.0.1:5000` locally or `api:5000` on the same Docker network).
 4. Reload or restart Prometheus.
 
 Minimal scrape config:
@@ -113,7 +85,7 @@ scrape_configs:
 
 Optional alert rules: mount [monitoring/prometheus/alert-rules.yml](../monitoring/prometheus/alert-rules.yml) and add to `rule_files` in your Prometheus config.
 
-### Option C: Kubernetes (Prometheus Operator)
+### Kubernetes (Prometheus Operator)
 
 1. Expose the API with a Service named `docintel-api`, label `app: docintel-api`, port name `http` on 5000.
 2. Apply the ServiceMonitor:
@@ -148,7 +120,7 @@ spec:
       targetPort: 5000
 ```
 
-### Option D: Grafana only
+### Grafana dashboard import
 
 You already have Prometheus or another compatible backend.
 
@@ -158,7 +130,7 @@ You already have Prometheus or another compatible backend.
    - Grafana UI: Dashboards -> New -> Import -> Upload JSON
 3. Dashboard UID: `docintel-app-performance`
 
-### Option E: Grafana Cloud or remote Prometheus
+### Grafana Cloud or remote Prometheus
 
 Grafana Cloud Agent, Alloy, or Grafana Agent Flow can scrape the same endpoint.
 
@@ -174,7 +146,7 @@ scrape_configs:
 
 Forward scraped metrics to your Grafana Cloud Prometheus remote write endpoint using your vendor docs.
 
-### Option F: Datadog OpenMetrics
+### Datadog OpenMetrics
 
 Datadog can poll Prometheus endpoints with an OpenMetrics check.
 
@@ -188,7 +160,7 @@ instances:
 
 Place this in your Datadog Agent `conf.d/openmetrics.d/conf.yaml` and restart the agent. A ready-made file is at [monitoring/integrations/datadog-openmetrics.yaml.example](../monitoring/integrations/datadog-openmetrics.yaml.example).
 
-### Option G: Amazon Managed Prometheus (AMP)
+### Amazon Managed Prometheus (AMP)
 
 1. Run Prometheus Agent or Grafana Alloy in the cluster or on a host near the API.
 2. Scrape `http://<api>:5000/metrics?format=prometheus` with the scrape config above.
@@ -213,6 +185,50 @@ Example rules ship in:
 
 Tune thresholds to match your traffic and SLOs.
 
+## Logs (Loki or your log platform)
+
+The API and worker emit **JSON logs to stdout** (`docintel.ops.logging`). Collect them with your existing agent (Promtail, Grafana Alloy, Fluent Bit, Datadog, CloudWatch, and so on).
+
+### Why Loki with Grafana
+
+If you already use **Prometheus + Grafana** for metrics, **Loki** is a common pairing for logs. Alternatives: ELK/OpenSearch for heavy search, Datadog/New Relic for managed SaaS, cloud-native logging on AWS/GCP.
+
+Example configs (not started by `make up`):
+
+- [monitoring/loki/loki-config.yml](../monitoring/loki/loki-config.yml)
+- [monitoring/promtail/promtail-config.yml](../monitoring/promtail/promtail-config.yml)
+- [monitoring/grafana/dashboards/docintel-logs.json](../monitoring/grafana/dashboards/docintel-logs.json)
+
+### Job processing log events
+
+Logger: `docintel.job` (worker process). Emitted from the job store on status and progress changes.
+
+| Event | When |
+|-------|------|
+| `job queued` | Job saved to Redis |
+| `job running` | Worker picked up the job |
+| `job page progress` | OCR / PDF page counter advanced |
+| `job progress` | Non-page progress message changed |
+| `job completed` | Success (includes `duration_ms`, optional `document_filename`, `finding_count`, `classification`) |
+| `job failed` | Failure (includes `error`) |
+
+HTTP requests continue to log under `docintel.request` with `method`, `path`, `status_code`, `duration_ms`.
+
+Example LogQL:
+
+```logql
+{service="worker", logger="docintel.job"} | json | job_type="document_process"
+{service="api", logger="docintel.request"} | json | status_code >= 400
+{service=~"api|worker"} | json | job_id="<paste-job-id>"
+```
+
+### Production notes
+
+- Point Promtail or Grafana Alloy at your container log files or Kubernetes pod logs.
+- Add labels such as `environment`, `cluster`, and `service` in Promtail relabel rules.
+- Keep retention and volume limits in Loki; JSON job progress logs can add up on large OCR jobs.
+- Secrets are redacted in application logs before stdout (see `ops/secrets.py`).
+
 ## Security notes
 
 - `/metrics` is on the public path list and does not require API keys. This matches common Prometheus practice.
@@ -227,8 +243,7 @@ Tune thresholds to match your traffic and SLOs.
 | `DOCINTEL_PROMETHEUS_ENABLED` | `true` | Set `false` to disable Prometheus series collection |
 | `DOCINTEL_REDIS_URL` | `redis://localhost:6379/0` | Used for `docintel_redis_up` and queue depth |
 | `DOCINTEL_JOBS_ENABLED` | `true` | When false, job metrics stay at zero |
-| `PROMETHEUS_PORT` | `9090` | Bundled Prometheus host port (compose only) |
-| `GRAFANA_PORT` | `3000` | Bundled Grafana host port (compose only) |
+| `DOCINTEL_LOG_LEVEL` | `INFO` | Root log level for API and worker JSON logs |
 
 ## File index
 

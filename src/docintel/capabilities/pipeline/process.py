@@ -12,6 +12,7 @@ from docintel.capabilities.extraction.formats import (
     extract_document_text,
     identify_document,
 )
+from docintel.capabilities.extraction.formats.paginated_pdf import detect_pii_in_pdf_segments
 from docintel.capabilities.understanding.classify import classify_text
 from docintel.services.pdf.pii import detect_pii_in_text
 from docintel.services.summary import summarize_text
@@ -76,6 +77,45 @@ class ProcessResult:
         return payload
 
 
+def _document_has_text(extraction) -> bool:
+    if extraction.text.strip():
+        return True
+    return any(str(segment.get("text") or "").strip() for segment in extraction.segments)
+
+
+def _build_extraction_report(extraction, *, selected: ProcessOptions, analysis_text: str) -> dict[str, Any]:
+    large = bool(extraction.metadata.get("large_document"))
+    char_count = int(extraction.metadata.get("char_count", len(analysis_text)))
+
+    if selected.include_text:
+        if large:
+            return {
+                "kind": extraction.kind.value,
+                "mime_type": extraction.mime_type,
+                "large_document": True,
+                "segments": extraction.segments,
+                "text_preview": analysis_text[: selected.text_preview_chars],
+                "analysis_sample": analysis_text,
+                "char_count": char_count,
+                "metadata": extraction.metadata,
+                "segment_count": len(extraction.segments),
+            }
+        return extraction.to_dict()
+
+    preview = analysis_text[: selected.text_preview_chars]
+    if len(analysis_text) > selected.text_preview_chars:
+        preview += "\n...(truncated)"
+    return {
+        "kind": extraction.kind.value,
+        "mime_type": extraction.mime_type,
+        "text_preview": preview,
+        "char_count": char_count,
+        "metadata": extraction.metadata,
+        "segment_count": len(extraction.segments),
+        "large_document": large,
+    }
+
+
 def process_document(
     path: str | Path,
     *,
@@ -99,45 +139,45 @@ def process_document(
         identification=identification,
     )
 
-    text = extraction.text
-    if not text.strip():
+    if not _document_has_text(extraction):
         raise ValueError("Document contains no extractable text.")
 
-    classification = classify_text(text).to_dict()
+    large = bool(extraction.metadata.get("large_document"))
+    analysis_text = extraction.text.strip() or extraction.text
+
+    classification = classify_text(analysis_text).to_dict()
 
     summary_payload: dict[str, Any] | None = None
     if selected.include_summarize:
-        summary_payload = summarize_text(text, sentence_count=selected.sentences).to_dict()
+        summary_payload = summarize_text(analysis_text, sentence_count=selected.sentences).to_dict()
 
     pii_payload: dict[str, Any] | None = None
     if selected.include_pii:
         try:
-            hits = detect_pii_in_text(
-                text,
-                entities=selected.entities,
-                min_score=selected.min_score,
-            )
+            if large and extraction.segments:
+                findings = detect_pii_in_pdf_segments(
+                    extraction.segments,
+                    entities=selected.entities,
+                    min_score=selected.min_score,
+                )
+            else:
+                hits = detect_pii_in_text(
+                    analysis_text,
+                    entities=selected.entities,
+                    min_score=selected.min_score,
+                )
+                findings = [hit.to_dict() for hit in hits]
         except RuntimeError as exc:
             raise RuntimeError(
                 "PII detection requires Presidio. Install: pip install -e '.[pii]'"
             ) from exc
-        findings = [hit.to_dict() for hit in hits]
         pii_payload = {"finding_count": len(findings), "findings": findings}
 
-    if selected.include_text:
-        extraction_report = extraction.to_dict()
-    else:
-        preview = text[: selected.text_preview_chars]
-        if len(text) > selected.text_preview_chars:
-            preview += "\n...(truncated)"
-        extraction_report = {
-            "kind": extraction.kind.value,
-            "mime_type": extraction.mime_type,
-            "text_preview": preview,
-            "char_count": len(text),
-            "metadata": extraction.metadata,
-            "segment_count": len(extraction.segments),
-        }
+    extraction_report = _build_extraction_report(
+        extraction,
+        selected=selected,
+        analysis_text=analysis_text,
+    )
 
     return ProcessResult(
         filename=filename or file_path.name,

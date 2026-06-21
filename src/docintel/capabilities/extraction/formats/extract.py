@@ -52,22 +52,9 @@ def extract_document_text(
 
 
 def _extract_pdf(path: Path, identification: IdentificationResult) -> ExtractionResult:
-    pdf_doc = fitz.open(path)
-    segments: list[dict] = []
-    parts: list[str] = []
-    for page_index in range(pdf_doc.page_count):
-        text = pdf_doc[page_index].get_text("text").strip()
-        segments.append({"page": page_index, "text": text})
-        if text:
-            parts.append(text)
-    pdf_doc.close()
-    return ExtractionResult(
-        kind=identification.kind,
-        mime_type=identification.mime_type,
-        text="\n\n".join(parts),
-        segments=segments,
-        metadata={"page_count": len(segments)},
-    )
+    from docintel.capabilities.extraction.formats.paginated_pdf import extract_pdf_document
+
+    return extract_pdf_document(path, identification)
 
 
 def _extract_docx(path: Path, identification: IdentificationResult) -> ExtractionResult:

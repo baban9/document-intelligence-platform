@@ -1,3 +1,5 @@
+# Reference Prometheus config. Use scrape-config.example.yml in your deployment.
+# Target api:5000 assumes Prometheus runs on the same Docker network as the API service.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

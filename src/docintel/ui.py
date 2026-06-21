@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -11,6 +13,11 @@ from typing import Any
 
 import requests
 
+from docintel.presentation.pii_labels import (
+    format_pii_entity_label,
+    pii_entity_choice_pairs,
+    summarize_pii_entity_selection,
+)
 from docintel.services.integrity import V1_CHECKS
 
 API_BASE = os.getenv("DOCINTEL_API_URL", "http://127.0.0.1:5000").rstrip("/")
@@ -84,6 +91,21 @@ def pii_entities_for_vertical(vertical: str) -> list[str]:
         return list(entities_for_vertical(vertical))
     except ValueError:
         return default_pii_entity_selection()
+
+
+def on_process_vertical_change(vertical: str) -> tuple[list[str], str]:
+    """Sync entity picker and summary when a vertical preset changes."""
+    entity_ids = pii_entities_for_vertical(vertical)
+    summary = summarize_pii_entity_selection(selected_entity_ids=entity_ids, vertical=vertical)
+    return entity_ids, summary
+
+
+def on_process_entity_selection_change(vertical: str, selected_entity_ids: list[str]) -> str:
+    """Refresh the selection summary when manual entity picks change."""
+    return summarize_pii_entity_selection(
+        selected_entity_ids=selected_entity_ids,
+        vertical=vertical,
+    )
 
 
 GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
@@ -521,6 +543,646 @@ def format_process_result_for_display(result: dict[str, Any]) -> dict[str, Any]:
     return display
 
 
+def _process_page_label(page_index: int) -> str:
+    return f"Page {page_index + 1}"
+
+
+PROCESS_PAGE_WINDOW_SIZE = 10
+
+
+def process_page_window_start(page_index: int, window_size: int = PROCESS_PAGE_WINDOW_SIZE) -> int:
+    """First page index (0-based) in the current pagination window."""
+    return (max(page_index, 0) // window_size) * window_size
+
+
+def process_page_window_choices(
+    page_count: int,
+    page_index: int,
+    window_size: int = PROCESS_PAGE_WINDOW_SIZE,
+) -> list[str]:
+    """Up to 10 page labels centered on the current pagination window."""
+    window_start = process_page_window_start(page_index, window_size)
+    window_end = min(window_start + window_size, max(page_count, 1))
+    return [_process_page_label(index) for index in range(window_start, window_end)]
+
+
+def process_pii_pages_with_findings(result: dict[str, Any]) -> list[int]:
+    """Document pages (0-based) that contain at least one PII finding."""
+    return sorted({int(item.get("page", 0)) for item in _process_pii_findings(result)})
+
+
+def process_pages_with_text(result: dict[str, Any]) -> list[int]:
+    """Document pages that have non-empty extracted text."""
+    return sorted(
+        {
+            int(segment.get("page", 0))
+            for segment in _process_segments(result)
+            if str(segment.get("text") or "").strip()
+        }
+    )
+
+
+def process_navigable_pages(result: dict[str, Any]) -> list[int]:
+    """Pages shown in the pager: PII hits first, else non-empty text pages."""
+    pii = result.get("pii")
+    if isinstance(pii, dict) and pii.get("findings") is not None:
+        return process_pii_pages_with_findings(result)
+    text_pages = process_pages_with_text(result)
+    if text_pages:
+        return text_pages
+    return list(range(process_page_count(result)))
+
+
+def process_default_navigable_page(result: dict[str, Any]) -> int:
+    """First page to open after processing (skips empty pages)."""
+    navigable = process_navigable_pages(result)
+    if navigable:
+        return navigable[0]
+    return 0
+
+
+def process_snap_navigable_page(result: dict[str, Any], page_index: int) -> int:
+    """Snap a page index to the nearest page that has results."""
+    navigable = process_navigable_pages(result)
+    page_count = process_page_count(result)
+    clamped = min(max(page_index, 0), max(page_count - 1, 0))
+    if not navigable:
+        return clamped
+    if clamped in navigable:
+        return clamped
+    for page in navigable:
+        if page >= clamped:
+            return page
+    return navigable[-1]
+
+
+def process_step_navigable_page(result: dict[str, Any], page_index: int, delta: int) -> int:
+    """Move to the previous or next page that has results."""
+    navigable = process_navigable_pages(result)
+    page_count = process_page_count(result)
+    if not navigable:
+        current = min(max(page_index, 0), max(page_count - 1, 0))
+        return min(max(current + int(delta), 0), max(page_count - 1, 0))
+    current = process_snap_navigable_page(result, page_index)
+    position = navigable.index(current)
+    next_position = min(max(position + int(delta), 0), len(navigable) - 1)
+    return navigable[next_position]
+
+
+def process_navigable_window_choices(
+    navigable: list[int],
+    page_index: int,
+    window_size: int = PROCESS_PAGE_WINDOW_SIZE,
+) -> list[str]:
+    """Up to 10 labels from pages that have results."""
+    if not navigable:
+        return [_process_page_label(0)]
+    current = page_index if page_index in navigable else process_snap_navigable_page_from_list(
+        navigable, page_index
+    )
+    position = navigable.index(current)
+    window_start = (position // window_size) * window_size
+    window_pages = navigable[window_start : window_start + window_size]
+    return [_process_page_label(page) for page in window_pages]
+
+
+def process_snap_navigable_page_from_list(navigable: list[int], page_index: int) -> int:
+    if not navigable:
+        return max(page_index, 0)
+    if page_index in navigable:
+        return page_index
+    for page in navigable:
+        if page >= page_index:
+            return page
+    return navigable[-1]
+
+
+def process_shift_navigable_window(
+    result: dict[str, Any],
+    page_index: int,
+    block_delta: int,
+) -> int:
+    """Jump 10 result pages forward or backward in the navigable page list."""
+    navigable = process_navigable_pages(result)
+    if not navigable:
+        return process_step_navigable_page(
+            result,
+            page_index,
+            int(block_delta) * PROCESS_PAGE_WINDOW_SIZE,
+        )
+    current = process_snap_navigable_page(result, page_index)
+    position = navigable.index(current)
+    next_position = min(
+        max(position + int(block_delta) * PROCESS_PAGE_WINDOW_SIZE, 0),
+        len(navigable) - 1,
+    )
+    return navigable[next_position]
+
+
+def _process_page_select_update(result: dict[str, Any], page_index: int) -> Any:
+    """Gradio dropdown update with a 10-page window of pages that have results."""
+    import gradio as gr
+
+    page_number = process_snap_navigable_page(result, page_index)
+    navigable = process_navigable_pages(result)
+    choices = process_navigable_window_choices(navigable, page_number)
+    value = _process_page_label(page_number)
+    return gr.update(choices=choices, value=value)
+
+
+def process_page_count(result: dict[str, Any]) -> int:
+    """Return document page count from extraction metadata or segments."""
+    extraction = result.get("extraction")
+    if not isinstance(extraction, dict):
+        return 1
+    metadata = extraction.get("metadata")
+    if isinstance(metadata, dict):
+        raw = metadata.get("page_count")
+        if isinstance(raw, int) and raw > 0:
+            return raw
+    segments = extraction.get("segments")
+    if isinstance(segments, list) and segments:
+        pages = [int(item.get("page", 0)) for item in segments if isinstance(item, dict)]
+        if pages:
+            return max(pages) + 1
+    return 1
+
+
+def _process_segments(result: dict[str, Any]) -> list[dict[str, Any]]:
+    extraction = result.get("extraction")
+    if not isinstance(extraction, dict):
+        return []
+    segments = extraction.get("segments")
+    if isinstance(segments, list) and segments:
+        return [item for item in segments if isinstance(item, dict)]
+    text = extraction.get("text") or extraction.get("text_preview")
+    if isinstance(text, str) and text.strip():
+        return [{"page": 0, "text": text}]
+    return []
+
+
+def _process_full_text(result: dict[str, Any]) -> str:
+    extraction = result.get("extraction")
+    if not isinstance(extraction, dict):
+        return ""
+    text = extraction.get("text")
+    if isinstance(text, str):
+        return text
+    segments = _process_segments(result)
+    parts: list[str] = []
+    for segment in segments:
+        segment_text = str(segment.get("text") or "")
+        if segment_text.strip():
+            parts.append(segment_text)
+    if parts:
+        return "\n\n".join(parts)
+    preview = extraction.get("text_preview")
+    return preview if isinstance(preview, str) else ""
+
+
+def _segment_offset_ranges(segments: list[dict[str, Any]]) -> list[tuple[int, int, int]]:
+    """Map char offsets in joined extraction text to PDF page numbers."""
+    ranges: list[tuple[int, int, int]] = []
+    offset = 0
+    first = True
+    for segment in segments:
+        text = str(segment.get("text") or "")
+        if not text.strip():
+            continue
+        page = int(segment.get("page", 0))
+        if not first:
+            offset += 2
+        start = offset
+        offset += len(text)
+        ranges.append((page, start, offset))
+        first = False
+    return ranges
+
+
+def _page_for_char_offset(ranges: list[tuple[int, int, int]], char_offset: int) -> int | None:
+    for page, start, end in ranges:
+        if start <= char_offset < end:
+            return page
+    return None
+
+
+def assign_pii_findings_to_pages(
+    findings: list[dict[str, Any]],
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach a page number to each PII finding using text offsets."""
+    ranges = _segment_offset_ranges(segments)
+    enriched: list[dict[str, Any]] = []
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        item = dict(finding)
+        start = item.get("start")
+        page = _page_for_char_offset(ranges, int(start)) if isinstance(start, int) else None
+        if page is None and segments:
+            snippet = str(item.get("text") or "")
+            for segment in segments:
+                if snippet and snippet in str(segment.get("text") or ""):
+                    page = int(segment.get("page", 0))
+                    break
+        item["page"] = page if page is not None else 0
+        enriched.append(item)
+    return enriched
+
+
+def _process_pii_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
+    pii = result.get("pii")
+    if not isinstance(pii, dict):
+        return []
+    findings = pii.get("findings")
+    if not isinstance(findings, list):
+        return []
+    raw = [item for item in findings if isinstance(item, dict)]
+    segments = _process_segments(result)
+    if not segments:
+        return [dict(item, page=0) for item in raw]
+    return assign_pii_findings_to_pages(raw, segments)
+
+
+def _highlight_pii_html(text: str, findings: list[dict[str, Any]]) -> str:
+    if not text:
+        return ""
+    if not findings:
+        return html.escape(text)
+
+    snippets = sorted(
+        {str(item.get("text") or "") for item in findings if str(item.get("text") or "")},
+        key=len,
+        reverse=True,
+    )
+    parts: list[str] = []
+    cursor = 0
+    while cursor < len(text):
+        match_at = -1
+        match_snippet = ""
+        match_entity = ""
+        match_score = 0.0
+        for snippet in snippets:
+            idx = text.find(snippet, cursor)
+            if idx != -1 and (match_at == -1 or idx < match_at):
+                match_at = idx
+                match_snippet = snippet
+                for finding in findings:
+                    if str(finding.get("text") or "") == snippet:
+                        match_entity = format_pii_entity_label(str(finding.get("entity_type") or ""))
+                        match_score = float(finding.get("score") or 0.0)
+                        break
+        if match_at == -1:
+            parts.append(html.escape(text[cursor:]))
+            break
+        if match_at > cursor:
+            parts.append(html.escape(text[cursor:match_at]))
+        title = html.escape(f"{match_entity} ({round(match_score * 100)}%)")
+        parts.append(
+            f'<mark class="pii-highlight" title="{title}">{html.escape(match_snippet)}</mark>'
+        )
+        cursor = match_at + len(match_snippet)
+    return "".join(parts)
+
+
+def _process_results_shell(body: str) -> str:
+    return f'<div class="process-results">{body}</div>'
+
+
+def _process_results_placeholder_html(message: str) -> str:
+    return _process_results_shell(
+        f'<p class="process-results-empty">{html.escape(message)}</p>'
+    )
+
+
+def render_process_summary_html(result: dict[str, Any]) -> str:
+    filename = html.escape(str(result.get("filename") or "Document"))
+    extraction = result.get("extraction") if isinstance(result.get("extraction"), dict) else {}
+    classification = result.get("classification") if isinstance(result.get("classification"), dict) else {}
+    summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+    pii = result.get("pii") if isinstance(result.get("pii"), dict) else {}
+
+    page_count = process_page_count(result)
+    pii_count = int(pii.get("finding_count") or 0)
+    category = html.escape(str(classification.get("category") or "unknown"))
+    confidence = classification.get("confidence")
+    confidence_pct = (
+        f"{float(confidence) * 100:.0f}%" if isinstance(confidence, (int, float)) else "n/a"
+    )
+    mime_type = html.escape(str(extraction.get("mime_type") or ""))
+
+    stats = (
+        f'<div class="process-stat-grid">'
+        f'<div class="process-stat"><div class="process-stat-value">{page_count}</div>'
+        f'<div class="process-stat-label">Pages</div></div>'
+        f'<div class="process-stat"><div class="process-stat-value">{pii_count}</div>'
+        f'<div class="process-stat-label">PII findings</div></div>'
+        f'<div class="process-stat"><div class="process-stat-value">{confidence_pct}</div>'
+        f'<div class="process-stat-label">Classification confidence</div></div>'
+        f"</div>"
+    )
+
+    chips = f'<span class="process-chip">{category}</span>'
+    if mime_type:
+        chips += f'<span class="process-chip">{mime_type}</span>'
+
+    summary_lines = summary.get("sentences")
+    summary_html = ""
+    if isinstance(summary_lines, list) and summary_lines:
+        items = "".join(f"<li>{html.escape(str(line))}</li>" for line in summary_lines)
+        summary_html = f'<h3>Document summary</h3><ul class="process-summary-list">{items}</ul>'
+    elif isinstance(summary.get("summary"), str) and summary.get("summary"):
+        summary_html = (
+            f"<h3>Document summary</h3><p>{html.escape(str(summary['summary']))}</p>"
+        )
+    else:
+        summary_html = "<p class=\"process-muted\">Summary was not requested for this run.</p>"
+
+    body = (
+        f"<h3 class=\"process-filename\">{filename}</h3>"
+        f'<div class="process-chips">{chips}</div>'
+        f"{stats}"
+        f"{summary_html}"
+    )
+    return _process_results_shell(body)
+
+
+def render_process_classification_html(result: dict[str, Any]) -> str:
+    classification = result.get("classification")
+    if not isinstance(classification, dict):
+        return _process_results_placeholder_html("Classification is not available.")
+
+    category = html.escape(str(classification.get("category") or "unknown"))
+    confidence = classification.get("confidence")
+    confidence_text = (
+        f"{float(confidence) * 100:.1f}%" if isinstance(confidence, (int, float)) else "n/a"
+    )
+    scores = classification.get("scores")
+    score_rows: list[str] = []
+    if isinstance(scores, dict):
+        for label, value in sorted(scores.items(), key=lambda item: item[1], reverse=True):
+            pct = f"{float(value) * 100:.2f}%" if isinstance(value, (int, float)) else "n/a"
+            score_rows.append(
+                "<tr>"
+                f"<td>{html.escape(str(label))}</td>"
+                f'<td class="process-num">{pct}</td>'
+                "</tr>"
+            )
+
+    table = ""
+    if score_rows:
+        table = (
+            "<h3>Category scores</h3>"
+            '<table class="process-table"><thead><tr>'
+            "<th>Category</th><th>Score</th>"
+            "</tr></thead><tbody>"
+            + "".join(score_rows)
+            + "</tbody></table>"
+        )
+
+    body = (
+        f'<div class="process-stat-grid process-stat-grid-2">'
+        f'<div class="process-stat"><div class="process-stat-value">{category}</div>'
+        f'<div class="process-stat-label">Primary category</div></div>'
+        f'<div class="process-stat"><div class="process-stat-value">{confidence_text}</div>'
+        f'<div class="process-stat-label">Confidence</div></div>'
+        f"</div>"
+        f"{table}"
+    )
+    return _process_results_shell(body)
+
+
+def render_process_pii_html(result: dict[str, Any], page_index: int) -> str:
+    pii = result.get("pii")
+    if not isinstance(pii, dict):
+        return _process_results_placeholder_html("PII scan was not requested for this run.")
+
+    findings = _process_pii_findings(result)
+    if not findings:
+        return _process_results_placeholder_html("No PII detected in this document.")
+
+    page_count = process_page_count(result)
+    page_number = process_snap_navigable_page(result, page_index)
+    page_findings = [item for item in findings if int(item.get("page", 0)) == page_number]
+    segments = _process_segments(result)
+    segment = next((item for item in segments if int(item.get("page", 0)) == page_number), None)
+    segment_text = str(segment.get("text") or "") if segment else ""
+
+    if not segments:
+        note = (
+            "<p class=\"process-muted\">Enable <strong>Include extracted text</strong> "
+            "for page-by-page PII grouping.</p>"
+        )
+        page_findings = findings
+        note = "" if findings else note
+    else:
+        note = ""
+
+    rows = "".join(
+        "<tr>"
+        f"<td>{html.escape(format_pii_entity_label(str(item.get('entity_type') or '')))}</td>"
+        f"<td>{html.escape(str(item.get('text') or ''))}</td>"
+        f'<td class="process-num">{round(float(item.get("score") or 0) * 100)}%</td>'
+        "</tr>"
+        for item in page_findings
+    )
+    table = (
+        '<table class="process-table"><thead><tr>'
+        "<th>Entity</th><th>Value</th><th>Score</th>"
+        "</tr></thead><tbody>"
+        + (rows or '<tr><td colspan="3">No PII detected on this page.</td></tr>')
+        + "</tbody></table>"
+    )
+
+    preview = ""
+    if segment_text:
+        preview = (
+            "<h3>Page preview</h3>"
+            f'<pre class="process-text-block">{_highlight_pii_html(segment_text, page_findings)}</pre>'
+        )
+
+    body = (
+        f"<h3>{html.escape(_process_page_label(page_number))}</h3>"
+        f'<p class="process-muted">{len(page_findings)} finding(s) on this page</p>'
+        f"{note}"
+        f"{table}"
+        f"{preview}"
+    )
+    return _process_results_shell(body)
+
+
+def render_process_text_html(result: dict[str, Any], page_index: int) -> str:
+    segments = _process_segments(result)
+    page_count = process_page_count(result)
+    page_number = min(max(page_index, 0), max(page_count - 1, 0))
+    segment = next((item for item in segments if int(item.get("page", 0)) == page_number), None)
+    findings = _process_pii_findings(result)
+    page_findings = [item for item in findings if int(item.get("page", 0)) == page_number]
+
+    if segment is None:
+        extraction = result.get("extraction") if isinstance(result.get("extraction"), dict) else {}
+        preview = extraction.get("text_preview")
+        if page_number == 0 and isinstance(preview, str) and preview.strip():
+            body = (
+                f"<h3>{html.escape(_process_page_label(page_number))}</h3>"
+                f'<pre class="process-text-block">{html.escape(preview)}</pre>'
+                '<p class="process-muted">Text preview only. Enable '
+                "<strong>Include extracted text</strong> for full page-by-page text.</p>"
+            )
+            return _process_results_shell(body)
+        return _process_results_placeholder_html(
+            "No extracted text for this page. Enable Include extracted text in the request."
+        )
+
+    segment_text = str(segment.get("text") or "")
+    body = (
+        f"<h3>{html.escape(_process_page_label(page_number))}</h3>"
+        f'<p class="process-muted">{len(segment_text)} characters</p>'
+        f'<pre class="process-text-block">{_highlight_pii_html(segment_text, page_findings)}</pre>'
+    )
+    return _process_results_shell(body)
+
+
+def render_process_result_header(result: dict[str, Any]) -> str:
+    filename = str(result.get("filename") or "Document")
+    page_count = process_page_count(result)
+    navigable = process_navigable_pages(result)
+    header = f"**Results:** `{filename}` ({page_count} page{'s' if page_count != 1 else ''})"
+    if navigable and len(navigable) < page_count:
+        header += f" - {len(navigable)} page{'s' if len(navigable) != 1 else ''} with results"
+    return header
+
+
+def render_process_page_label(result: dict[str, Any], page_index: int) -> str:
+    page_count = process_page_count(result)
+    navigable = process_navigable_pages(result)
+    page_number = process_snap_navigable_page(result, page_index)
+    base = f"**{_process_page_label(page_number)} of {page_count}**"
+    if navigable and len(navigable) < page_count:
+        if page_number in navigable:
+            result_index = navigable.index(page_number) + 1
+            base = f"{base} (result {result_index} of {len(navigable)})"
+        else:
+            base = f"{base} ({len(navigable)} pages with results)"
+    if page_count > PROCESS_PAGE_WINDOW_SIZE and navigable:
+        position = navigable.index(page_number) if page_number in navigable else 0
+        window_start_pos = (position // PROCESS_PAGE_WINDOW_SIZE) * PROCESS_PAGE_WINDOW_SIZE
+        window_pages = navigable[window_start_pos : window_start_pos + PROCESS_PAGE_WINDOW_SIZE]
+        if window_pages:
+            base += f" (showing {_process_page_label(window_pages[0])}-{_process_page_label(window_pages[-1])})"
+    elif page_count > PROCESS_PAGE_WINDOW_SIZE:
+        window_start = process_page_window_start(page_number)
+        window_end = min(window_start + PROCESS_PAGE_WINDOW_SIZE, page_count)
+        base += f" (pages {window_start + 1}-{window_end})"
+    return base
+
+
+def build_process_result_outputs(
+    result: dict[str, Any],
+    *,
+    page_index: int | None = None,
+) -> tuple[Any, ...]:
+    """Build Gradio outputs for the process pipeline results panel."""
+    page_number = (
+        process_default_navigable_page(result)
+        if page_index is None
+        else process_snap_navigable_page(result, page_index)
+    )
+    state = {"result": result, "page_index": page_number}
+    return (
+        state,
+        render_process_result_header(result),
+        render_process_summary_html(result),
+        render_process_pii_html(result, page_number),
+        render_process_classification_html(result),
+        render_process_text_html(result, page_number),
+        _process_page_select_update(result, page_number),
+        render_process_page_label(result, page_number),
+    )
+
+
+def empty_process_result_outputs(message: str = "Upload a document and click Process to see results.") -> tuple[Any, ...]:
+    """Default outputs when no process result is loaded."""
+    import gradio as gr
+
+    placeholder = _process_results_placeholder_html(message)
+    return (
+        None,
+        message,
+        placeholder,
+        placeholder,
+        placeholder,
+        placeholder,
+        gr.update(choices=["Page 1"], value="Page 1"),
+        "**Page 1 of 1**",
+    )
+
+
+def _empty_process_page_outputs(message: str = "No results loaded yet.") -> tuple[Any, ...]:
+    """Paginated tab outputs when there is no loaded process result."""
+    import gradio as gr
+
+    placeholder = _process_results_placeholder_html(message)
+    return (
+        None,
+        placeholder,
+        placeholder,
+        gr.update(choices=["Page 1"], value="Page 1"),
+        "**Page 1 of 1**",
+    )
+
+
+def process_results_change_page(
+    state: dict[str, Any] | None,
+    page_label: str,
+) -> tuple[Any, ...]:
+    """Update paginated tabs when the user selects a page."""
+    if not state or not isinstance(state.get("result"), dict):
+        return _empty_process_page_outputs()
+    result = state["result"]
+    match = re.match(r"Page\s+(\d+)", page_label or "")
+    page_number = int(match.group(1)) - 1 if match else int(state.get("page_index") or 0)
+    page_number = process_snap_navigable_page(result, page_number)
+    state = {"result": result, "page_index": page_number}
+    return (
+        state,
+        render_process_pii_html(result, page_number),
+        render_process_text_html(result, page_number),
+        _process_page_select_update(result, page_number),
+        render_process_page_label(result, page_number),
+    )
+
+
+def process_results_shift_page_window(
+    state: dict[str, Any] | None,
+    block_delta: int,
+) -> tuple[Any, ...]:
+    """Jump to the previous or next block of 10 pages."""
+    if not state or not isinstance(state.get("result"), dict):
+        return _empty_process_page_outputs()
+    result = state["result"]
+    new_page = process_shift_navigable_window(
+        result,
+        int(state.get("page_index") or 0),
+        int(block_delta),
+    )
+    label = _process_page_label(new_page)
+    return process_results_change_page(state, label)
+
+
+def process_results_step_page(
+    state: dict[str, Any] | None,
+    delta: int,
+) -> tuple[Any, ...]:
+    """Move to the previous or next results page."""
+    if not state or not isinstance(state.get("result"), dict):
+        return process_results_change_page(None, "Page 1")
+    page_index = int(state.get("page_index") or 0)
+    new_page = process_step_navigable_page(state["result"], page_index, int(delta))
+    label = _process_page_label(new_page)
+    return process_results_change_page(state, label)
+
+
 def process_document_ui(
     upload_file: Any,
     sentences: int,
@@ -530,11 +1192,11 @@ def process_document_ui(
     vertical: str,
     selected_entities: list[str],
     entities: str,
-) -> str:
+) -> tuple[Any, ...]:
     """Run unified extract, classify, summarize, and PII pipeline via async jobs."""
     path = resolve_upload_path(upload_file)
     if path is None:
-        return "Upload a document."
+        return empty_process_result_outputs("Upload a document.")
 
     data = {
         "sentences": str(int(sentences)),
@@ -565,11 +1227,16 @@ def process_document_ui(
     try:
         payload = json.loads(formatted)
     except json.JSONDecodeError:
-        return formatted
+        return empty_process_result_outputs(formatted)
 
-    if isinstance(payload, dict) and payload.get("classification") is not None:
-        return json.dumps(format_process_result_for_display(payload), indent=2)
-    return formatted
+    if not isinstance(payload, dict):
+        return empty_process_result_outputs(formatted)
+    if payload.get("error"):
+        return empty_process_result_outputs(str(payload["error"]))
+    if payload.get("classification") is None:
+        return empty_process_result_outputs(formatted)
+
+    return build_process_result_outputs(payload)
 
 
 def compare_documents_ui(file_a: Any, file_b: Any) -> str:
@@ -719,6 +1386,14 @@ def _demo_theme():
             checkbox_label_text_color_dark=_TEXT,
             checkbox_label_border_color=_BORDER,
             checkbox_label_border_color_dark=_BORDER,
+            checkbox_label_background_fill_selected="#fff7ed",
+            checkbox_label_background_fill_selected_dark="#fff7ed",
+            checkbox_label_text_color_selected=_TEXT,
+            checkbox_label_text_color_selected_dark=_TEXT,
+            checkbox_label_border_color_selected=_ACCENT,
+            checkbox_label_border_color_selected_dark=_ACCENT,
+            checkbox_background_color=_BG,
+            checkbox_background_color_selected=_ACCENT,
             slider_color=_ACCENT,
             link_text_color=_ACCENT,
             link_text_color_hover=_ACCENT_HOVER,
@@ -743,7 +1418,7 @@ _APP_CSS = f"""
 .gradio-container {{
     background: {_BG} !important;
     color: {_TEXT} !important;
-    max-width: 1200px !important;
+    max-width: 1400px !important;
     font-size: 15px !important;
     line-height: 1.55 !important;
     color-scheme: light !important;
@@ -927,6 +1602,139 @@ _APP_CSS = f"""
     background: {_BG} !important;
 }}
 
+.process-panel-row {{
+    align-items: flex-start !important;
+    gap: 1.25rem !important;
+}}
+.process-controls {{
+    min-width: 0;
+}}
+.process-results-panel {{
+    min-width: 0;
+    border-left: 1px solid {_BORDER};
+    padding-left: 1.25rem;
+}}
+.process-results-panel .tabs {{
+    margin-top: 0.5rem;
+}}
+.process-page-nav {{
+    align-items: center !important;
+    margin-top: 0.75rem !important;
+    gap: 0.5rem !important;
+}}
+.process-results {{
+    color: {_TEXT};
+    font-size: 0.95rem;
+    line-height: 1.55;
+}}
+.process-results h3 {{
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: {_TEXT};
+}}
+.process-filename {{
+    font-size: 1.05rem !important;
+}}
+.process-muted {{
+    color: {_TEXT_MUTED};
+    margin: 0.25rem 0 0.75rem 0;
+}}
+.process-results-empty {{
+    color: {_TEXT_MUTED};
+    margin: 0;
+}}
+.process-chips {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.35rem 0 0.85rem 0;
+}}
+.process-chip {{
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid {_BORDER};
+    border-radius: 999px;
+    background: {_BG_SOFT};
+    color: {_TEXT};
+    font-size: 0.82rem;
+    font-weight: 600;
+}}
+.process-stat-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin: 0.75rem 0 1rem 0;
+}}
+.process-stat-grid-2 {{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}}
+.process-stat {{
+    border: 1px solid {_BORDER};
+    border-radius: 8px;
+    background: {_BG_SOFT};
+    padding: 0.65rem 0.75rem;
+}}
+.process-stat-value {{
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: {_TEXT};
+    line-height: 1.2;
+}}
+.process-stat-label {{
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    color: {_TEXT_MUTED};
+}}
+.process-summary-list {{
+    margin: 0.35rem 0 0 1.1rem;
+    padding: 0;
+}}
+.process-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0 1rem 0;
+    font-size: 0.9rem;
+}}
+.process-table th,
+.process-table td {{
+    border: 1px solid {_BORDER};
+    padding: 0.45rem 0.55rem;
+    text-align: left;
+    vertical-align: top;
+}}
+.process-table th {{
+    background: {_BG_SOFT};
+    font-weight: 700;
+}}
+.process-table tbody tr:nth-child(even) td {{
+    background: {_BG_SOFT};
+}}
+.process-table .process-num {{
+    text-align: right;
+    white-space: nowrap;
+}}
+.process-text-block {{
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: {_BG_SOFT};
+    border: 1px solid {_BORDER};
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.35rem 0 0 0;
+    max-height: 22rem;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}}
+.process-results mark.pii-highlight {{
+    background: #ffedd5;
+    color: {_TEXT};
+    border-bottom: 2px solid {_ACCENT};
+    padding: 0 2px;
+}}
+
 /* Dropdowns: force readable light menus (Gradio 5). */
 .gradio-container .block-label,
 .gradio-container .label-wrap,
@@ -990,6 +1798,44 @@ _APP_CSS = f"""
     color: {_TEXT_MUTED} !important;
     fill: {_TEXT_MUTED} !important;
 }}
+
+/* PII entity picker: clear selected vs unselected chips. */
+.pii-entity-picker label,
+.pii-entity-picker .wrap label,
+.gradio-container .pii-entity-picker label {{
+    border: 1px solid {_BORDER} !important;
+    border-radius: 999px !important;
+    padding: 0.35rem 0.75rem !important;
+    margin: 0.2rem 0.35rem 0.2rem 0 !important;
+    background: {_BG} !important;
+    color: {_TEXT_MUTED} !important;
+    font-weight: 500 !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}}
+.pii-entity-picker label.selected,
+.pii-entity-picker .wrap label.selected,
+.gradio-container .pii-entity-picker label.selected,
+.pii-entity-picker label:has(input:checked),
+.gradio-container .pii-entity-picker label:has(input:checked) {{
+    background: #fff7ed !important;
+    border-color: {_ACCENT} !important;
+    color: {_TEXT} !important;
+    font-weight: 600 !important;
+    box-shadow: inset 0 0 0 1px {_ACCENT} !important;
+}}
+.pii-entity-picker input[type="checkbox"],
+.gradio-container .pii-entity-picker input[type="checkbox"] {{
+    accent-color: {_ACCENT};
+}}
+.pii-entity-summary {{
+    font-size: 0.92rem !important;
+    color: {_TEXT_MUTED} !important;
+    margin: 0.35rem 0 0.75rem 0 !important;
+    line-height: 1.5 !important;
+}}
+.pii-entity-summary strong {{
+    color: {_TEXT} !important;
+}}
 """
 
 
@@ -1006,7 +1852,9 @@ def build_ui():
     ]
     office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
     pii_entity_choices = list_pii_entity_choices()
+    pii_entity_pairs = pii_entity_choice_pairs(pii_entity_choices)
     default_pii_entities = default_pii_entity_selection(pii_entity_choices)
+    initial_entity_summary = summarize_pii_entity_selection(selected_entity_ids=default_pii_entities)
 
     with gr.Blocks(
         title="Document Intelligence Platform",
@@ -1046,30 +1894,85 @@ def build_ui():
                     from docintel.capabilities.compliance.presets import list_vertical_presets
 
                     vertical_choices = [""] + sorted(list_vertical_presets().keys())
-                    process_file = gr.File(label="Document upload", file_types=office_types)
-                    with gr.Row():
-                        process_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
-                        process_vertical = gr.Dropdown(
-                            vertical_choices,
-                            value="",
-                            label="PII vertical preset (optional)",
-                        )
-                    with gr.Row():
-                        process_include_summary = gr.Checkbox(label="Include summary", value=True)
-                        process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
-                        process_include_text = gr.Checkbox(label="Include extracted text", value=False)
-                    process_entity_picker = gr.CheckboxGroup(
-                        choices=pii_entity_choices,
-                        value=default_pii_entities,
-                        label="PII types to detect",
-                        info="Uncheck types you do not need. A vertical preset below replaces this list.",
-                    )
-                    process_entities = gr.Textbox(
-                        label="Additional PII entities (optional)",
-                        placeholder="CUSTOM_ENTITY_NAME",
-                    )
-                    process_btn = gr.Button("Process document", variant="primary")
-                    process_output = gr.Textbox(label="Results", lines=18)
+                    with gr.Row(elem_classes=["process-panel-row"]):
+                        with gr.Column(scale=3, elem_classes=["process-controls"]):
+                            process_file = gr.File(label="Document upload", file_types=office_types)
+                            with gr.Row():
+                                process_sentences = gr.Slider(
+                                    1, 10, value=3, step=1, label="Summary sentences"
+                                )
+                                process_vertical = gr.Dropdown(
+                                    vertical_choices,
+                                    value="",
+                                    label="PII vertical preset (optional)",
+                                )
+                            with gr.Row():
+                                process_include_summary = gr.Checkbox(
+                                    label="Include summary", value=True
+                                )
+                                process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
+                                process_include_text = gr.Checkbox(
+                                    label="Include extracted text", value=False
+                                )
+                            process_entity_summary = gr.Markdown(
+                                initial_entity_summary,
+                                elem_classes=["pii-entity-summary"],
+                            )
+                            process_entity_picker = gr.CheckboxGroup(
+                                choices=pii_entity_pairs,
+                                value=default_pii_entities,
+                                label="PII types to detect",
+                                info="Selected types show with an orange outline. A vertical preset replaces manual picks.",
+                                elem_classes=["pii-entity-picker"],
+                            )
+                            process_entities = gr.Textbox(
+                                label="Additional PII entities (optional)",
+                                placeholder="CUSTOM_ENTITY_NAME",
+                            )
+                            process_btn = gr.Button("Process document", variant="primary")
+
+                        with gr.Column(scale=4, elem_classes=["process-results-panel"]):
+                            process_result_header = gr.Markdown(
+                                "Upload a document and click Process to see results."
+                            )
+                            with gr.Tabs():
+                                with gr.Tab("Summary"):
+                                    process_summary_html = gr.HTML(
+                                        value=_process_results_placeholder_html(
+                                            "Summary will appear here."
+                                        )
+                                    )
+                                with gr.Tab("PII detected"):
+                                    process_pii_html = gr.HTML(
+                                        value=_process_results_placeholder_html(
+                                            "PII findings will appear here."
+                                        )
+                                    )
+                                with gr.Tab("Classification"):
+                                    process_classification_html = gr.HTML(
+                                        value=_process_results_placeholder_html(
+                                            "Classification will appear here."
+                                        )
+                                    )
+                                with gr.Tab("Extracted text"):
+                                    process_text_html = gr.HTML(
+                                        value=_process_results_placeholder_html(
+                                            "Extracted text will appear here."
+                                        )
+                                    )
+                            with gr.Row(elem_classes=["process-page-nav"]):
+                                process_page_block_prev = gr.Button("Previous 10 pages", scale=0)
+                                process_page_prev = gr.Button("Previous page", scale=0)
+                                process_page_label = gr.Markdown("**Page 1 of 1**")
+                                process_page_next = gr.Button("Next page", scale=0)
+                                process_page_block_next = gr.Button("Next 10 pages", scale=0)
+                                process_page_select = gr.Dropdown(
+                                    choices=["Page 1"],
+                                    value="Page 1",
+                                    label="Jump to page with results (10 per group)",
+                                    scale=1,
+                                )
+                            process_state = gr.State(None)
 
                 with gr.Group(visible=False) as integrity_panel:
                     gr.Markdown("## Integrity analysis", elem_classes=["panel-title"])
@@ -1112,9 +2015,10 @@ def build_ui():
                         compare_file_b = gr.File(label="Compare document B", file_types=office_types)
                     doc_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
                     tools_entity_picker = gr.CheckboxGroup(
-                        choices=pii_entity_choices,
+                        choices=pii_entity_pairs,
                         value=default_pii_entities,
                         label="PII types to detect",
+                        elem_classes=["pii-entity-picker"],
                     )
                     tools_entities = gr.Textbox(
                         label="Additional PII entities (optional)",
@@ -1152,9 +2056,10 @@ def build_ui():
                     )
                     sensitive_file = gr.File(label="PDF upload", file_types=[".pdf"])
                     sensitive_entity_picker = gr.CheckboxGroup(
-                        choices=pii_entity_choices,
+                        choices=pii_entity_pairs,
                         value=default_pii_entities,
                         label="PII types to detect",
+                        elem_classes=["pii-entity-picker"],
                     )
                     with gr.Row():
                         sensitive_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
@@ -1217,9 +2122,14 @@ def build_ui():
             )
 
         process_vertical.change(
-            fn=pii_entities_for_vertical,
+            fn=on_process_vertical_change,
             inputs=process_vertical,
-            outputs=process_entity_picker,
+            outputs=[process_entity_picker, process_entity_summary],
+        )
+        process_entity_picker.change(
+            fn=on_process_entity_selection_change,
+            inputs=[process_vertical, process_entity_picker],
+            outputs=process_entity_summary,
         )
 
         process_btn.click(
@@ -1234,7 +2144,71 @@ def build_ui():
                 process_entity_picker,
                 process_entities,
             ],
-            outputs=process_output,
+            outputs=[
+                process_state,
+                process_result_header,
+                process_summary_html,
+                process_pii_html,
+                process_classification_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
+        )
+        process_page_select.change(
+            process_results_change_page,
+            inputs=[process_state, process_page_select],
+            outputs=[
+                process_state,
+                process_pii_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
+        )
+        process_page_prev.click(
+            fn=lambda state: process_results_step_page(state, -1),
+            inputs=[process_state],
+            outputs=[
+                process_state,
+                process_pii_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
+        )
+        process_page_next.click(
+            fn=lambda state: process_results_step_page(state, 1),
+            inputs=[process_state],
+            outputs=[
+                process_state,
+                process_pii_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
+        )
+        process_page_block_prev.click(
+            fn=lambda state: process_results_shift_page_window(state, -1),
+            inputs=[process_state],
+            outputs=[
+                process_state,
+                process_pii_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
+        )
+        process_page_block_next.click(
+            fn=lambda state: process_results_shift_page_window(state, 1),
+            inputs=[process_state],
+            outputs=[
+                process_state,
+                process_pii_html,
+                process_text_html,
+                process_page_select,
+                process_page_label,
+            ],
         )
         integrity_btn.click(
             analyze_document_integrity_ui,

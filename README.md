@@ -26,7 +26,7 @@ make launch            # start stack, wait for health, run e2e smoke test
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
 
-**LLM in Docker:** The slim API and worker images include the OpenAI SDK (`pip install -e ".[llm]"`). Compose defaults to Ollama on your host at `http://host.docker.internal:11434/v1`. Run `ollama pull llama3.2` before using Structure PDF or AI-driven PDF annotate.
+**LLM in Docker:** Compose runs a pre-baked Ollama image (`docintel-ollama:llama3.2`) with the default model included. Build it once with `make docker-build-ollama`, then reuse on every `make up`. Change the model with `OLLAMA_PULL_MODEL` in `.env` and rebuild.
 
 **Port 5000 already in use?** Edit `.env` and set `DOCINTEL_PORT=5001`, then run `make up` again. Shell-only `DOCINTEL_PORT=5001` without `export` or a `.env` file does not change Docker ports.
 
@@ -37,6 +37,7 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 | `make e2e` | Run e2e smoke test against an already running stack |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
+| `make docker-build-ollama` | Build Ollama image with default LLM pre-pulled |
 | `make docker-up` | Slim core only: Redis, API, worker (no UI) |
 | `make docker-up-ui` | Add web UI when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |

@@ -31,7 +31,13 @@ services:
       start_period: 5s
 
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+      args:
+        OLLAMA_BASE_IMAGE: ${OLLAMA_BASE_IMAGE:-ollama/ollama:0.6.6}
+        OLLAMA_PULL_MODEL: ${OLLAMA_PULL_MODEL:-llama3.2}
+    image: docintel-ollama:${OLLAMA_PULL_MODEL:-llama3.2}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     volumes:
@@ -43,6 +49,7 @@ services:
       retries: 10
       start_period: 30s
 
+  # Optional: pull extra models at runtime (skips when model is already present).
   ollama-init:
     image: curlimages/curl:8.12.1
     depends_on:

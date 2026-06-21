@@ -1,0 +1,29 @@
+# Ollama base image with a pre-pulled LLM model for Document Intelligence Platform.
+# Build once, reuse across machines: make docker-build-ollama
+#
+# Example:
+#   docker build -f Dockerfile.ollama \
+#     --build-arg OLLAMA_PULL_MODEL=llama3.2 \
+#     -t docintel-ollama:llama3.2 .
+
+ARG OLLAMA_BASE_IMAGE=ollama/ollama:0.6.6
+FROM ${OLLAMA_BASE_IMAGE}
+
+ARG OLLAMA_PULL_MODEL=llama3.2
+ENV OLLAMA_PULL_MODEL=${OLLAMA_PULL_MODEL}
+
+COPY scripts/ollama-bake.sh /usr/local/bin/ollama-bake.sh
+RUN chmod +x /usr/local/bin/ollama-bake.sh \
+    && /usr/local/bin/ollama-bake.sh \
+    && mkdir -p /opt/docintel-ollama-baked \
+    && cp -a /root/.ollama/. /opt/docintel-ollama-baked/
+
+COPY scripts/ollama-entrypoint.sh /usr/local/bin/ollama-entrypoint.sh
+RUN chmod +x /usr/local/bin/ollama-entrypoint.sh
+
+EXPOSE 11434
+
+HEALTHCHECK --interval=15s --timeout=10s --start-period=30s --retries=10 \
+  CMD ollama list || exit 1
+
+ENTRYPOINT ["/usr/local/bin/ollama-entrypoint.sh"]

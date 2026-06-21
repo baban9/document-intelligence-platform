@@ -20,7 +20,7 @@ git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth (see DOCINTEL_PORT if :5000 is busy)
 make env-init          # creates .env when missing
-make up                # Redis, API, worker, Gradio UI (slim, fast build)
+make up                # Redis, API, worker, React web UI (slim, fast build)
 ```
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
@@ -29,29 +29,29 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 
 | Command | What starts |
 |---------|-------------|
-| `make up` | **Full local stack:** Redis, slim API, worker, Gradio UI |
+| `make up` | **Full local stack:** Redis, slim API, worker, React web UI |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
-| `make docker-up` | Slim core only: Redis, API, worker (no PyTorch, faster build) |
-| `make docker-up-ui` | Add Gradio when API is already running |
+| `make docker-up` | Slim core only: Redis, API, worker (no UI) |
+| `make docker-up-ui` | Add web UI when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |
-| `make docker-up-full` | OCR stack + UI |
+| `make docker-up-full` | OCR stack + web UI |
 
 | Service | URL |
 |---------|-----|
+| Web UI | http://127.0.0.1:8080 |
 | API | http://127.0.0.1:5000 |
 | Interactive API docs | http://127.0.0.1:5000/docs |
-| Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
 | Metrics scrape | http://127.0.0.1:5000/metrics?format=prometheus |
 
-Gradio includes a **Document process** tab (unified pipeline) and a **Document integrity** tab (gap and consistency checks). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
+The web UI is a React app (nginx in Docker). Local hot reload: `make ui-dev` on http://127.0.0.1:5173. Async jobs need Redis and the worker service in compose, or `make run-worker` locally.
 
 **pip install:**
 
 ```bash
 pip install docintel-platform
-pip install "docintel-platform[all]"        # OCR, LLM, jobs, auth, UI, office formats
+pip install "docintel-platform[all]"        # OCR, LLM, jobs, auth, office formats
 pip install "docintel-platform[documents]"  # Word, Excel, and PowerPoint
 ```
 
@@ -119,16 +119,17 @@ make setup-hooks        # git hooks: strip agent co-authors and block secret com
 make check-secrets      # scan tracked files for leaked API keys
 make setup-ocr          # EasyOCR, Presidio, spaCy model
 make setup-llm          # OpenAI client (structure endpoint)
-make setup-ui           # Gradio
+make setup-ui           # React UI (npm install in frontend/)
 make run-redis          # Redis for async jobs (Docker, port 6379)
 make run                # API on :5000
 make run-worker         # RQ worker (separate terminal, needs Redis)
-make run-ui             # Gradio on :7860
+make run-ui             # React dev UI on :5173 (same as make ui-dev)
+make ui-dev             # React dev UI with hot reload
 make test
 make eval               # offline quality report (summary, classify, process, PII)
 ```
 
-Async routes and the Gradio integrity tab need Redis. Start it once with `make run-redis` before `make run-worker`.
+Async routes need Redis. Start it once with `make run-redis` before `make run-worker`.
 
 Copy `.env.example` to `.env` for LLM provider settings, auth keys, Redis, and S3. See comments in that file for all variables.
 

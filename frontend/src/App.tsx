@@ -38,7 +38,7 @@ export function AppShell() {
             </button>
           ))}
         </nav>
-        <p className="sidebar-note">Other panels will migrate from Gradio next.</p>
+        <p className="sidebar-note">More panels are coming soon.</p>
       </aside>
       <main className="main-panel">
         <ProcessPanel />

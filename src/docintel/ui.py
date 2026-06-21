@@ -2265,8 +2265,10 @@ def build_ui():
 
 
 def launch_ui() -> None:
-    demo = build_ui()
-    demo.launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
+    """Deprecated: Gradio UI removed. Use React UI (make up or make ui-dev)."""
+    raise RuntimeError(
+        "Gradio UI was removed. Use the React UI: make up (Docker) or make ui-dev (local)."
+    )
 
 
 if __name__ == "__main__":

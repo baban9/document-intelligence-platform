@@ -67,10 +67,6 @@ ocr = [
     "easyocr>=1.7.2",
     "opencv-python-headless>=4.10.0",
 ]
-ui = [
-    "gradio>=5.7.1,<6",
-    "requests>=2.32.3",
-]
 llm = [
     "openai>=1.54.0",
 ]
@@ -99,7 +95,6 @@ all = [
     "flask-limiter>=3.8.0",
     "PyJWT>=2.9.0",
     "cryptography>=43.0.0",
-    "gradio>=5.7.1,<6",
     "python-docx>=1.1.2",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
@@ -107,7 +102,6 @@ all = [
 
 [project.scripts]
 docintel = "docintel.cli:main"
-docintel-ui = "docintel.ui:launch_ui"
 
 [project.urls]
 Homepage = "https://github.com/baban9/document-intelligence-platform"

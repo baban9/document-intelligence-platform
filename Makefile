@@ -52,7 +52,7 @@ setup-auth:
 	$(PIP) install -e ".[auth]"
 
 setup-ui:
-	$(PIP) install -e ".[ui]"
+	cd frontend && npm install
 
 install:
 	$(PIP) install -e ".[dev]"
@@ -67,10 +67,9 @@ run-redis:
 run-worker:
 	$(PYTHON) run_worker.py
 
-run-ui:
-	$(PYTHON) run_ui.py
+run-ui: ui-dev
 
-# React + Vite UI (professional shell; Process pipeline first). Requires Node 20+.
+# React + Vite UI (local dev with hot reload). Requires Node 20+.
 ui-dev:
 	cd frontend && npm install && npm run dev
 
@@ -106,29 +105,29 @@ env-init:
 check-ports:
 	@for spec in \
 		"DOCINTEL_PORT:$${DOCINTEL_PORT:-5000}:API" \
-		"GRADIO_PORT:$${GRADIO_PORT:-7860}:Gradio UI"; do \
+		"UI_PORT:$${UI_PORT:-8080}:Web UI"; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; \
 		port=$${rest%%:*}; label=$${rest#*:}; \
 		if lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1; then \
-			if $(COMPOSE) --profile ui ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$$port->"; then \
+			if $(COMPOSE) ps --format '{{.Ports}}' 2>/dev/null | grep -q ":$$port->"; then \
 				echo "Port $$port ($$label) is in use by this stack; recycling containers..."; \
 			else \
 				echo "Port $$port ($$label) is already in use."; \
 				echo "If a previous stack is running: make down"; \
 				echo "Or edit .env (make env-init) and set $$name to a free port."; \
-				echo "Example: $$name=5002"; \
+				echo "Example: $$name=8081"; \
 				lsof -nP -iTCP:$$port -sTCP:LISTEN | head -3; \
 				exit 1; \
 			fi; \
 		fi; \
 	done
 
-# Full local stack: Redis, slim API, worker, Gradio UI.
+# Full local stack: Redis, slim API, worker, React UI.
 # Use make up-ocr for scanned PDF OCR (large PyTorch download).
 up: docker-up-local
 
 up-ocr: docker-down check-ports
-	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 
 down: docker-down
@@ -136,13 +135,13 @@ down: docker-down
 up-status:
 	@echo ""
 	@echo "Document Intelligence local stack (DOCINTEL_DOCKER_TARGET=$${DOCINTEL_DOCKER_TARGET:-slim})"
-	@$(COMPOSE) --profile ui ps
+	@$(COMPOSE) ps
 	@echo ""
 	@echo "URLs:"
+	@echo "  Web UI     http://127.0.0.1:$${UI_PORT:-8080}"
 	@echo "  API        http://127.0.0.1:$${DOCINTEL_PORT:-5000}"
 	@echo "  API docs   http://127.0.0.1:$${DOCINTEL_PORT:-5000}/docs"
-	@echo "  Gradio UI  http://127.0.0.1:$${GRADIO_PORT:-7860}"
-	@echo "  React UI   http://127.0.0.1:5173  (make ui-dev, API must be running)"
+	@echo "  Dev UI     http://127.0.0.1:5173  (make ui-dev, hot reload)"
 	@echo "  Metrics    http://127.0.0.1:$${DOCINTEL_PORT:-5000}/metrics?format=prometheus"
 	@echo "  Redis      localhost:$${REDIS_PORT:-6379}"
 	@echo "  Monitoring integration: docs/MONITORING.md"
@@ -167,21 +166,21 @@ docker-up:
 	$(COMPOSE) up -d --build redis api worker
 
 docker-up-ui:
-	$(COMPOSE) --profile ui up -d --build ui
+	$(COMPOSE) up -d --build ui
 
 docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
 docker-up-local: docker-down check-ports
-	$(COMPOSE) --profile ui up -d --build
+	$(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 
 docker-up-full: docker-down
-	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 
 docker-down:
-	$(COMPOSE) --profile ui down
+	$(COMPOSE) down
 
 docker-logs:
 	$(COMPOSE) logs -f

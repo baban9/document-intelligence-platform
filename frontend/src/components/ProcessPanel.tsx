@@ -60,8 +60,7 @@ export function ProcessPanel() {
       <header className="panel-header">
         <h1>Process pipeline</h1>
         <p>
-          Extract, classify, summarize, and scan for PII in one job. This React
-          shell will replace the Gradio demo panel by panel.
+          Extract, classify, summarize, and scan for PII in one job.
         </p>
       </header>
 

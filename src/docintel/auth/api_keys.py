@@ -13,6 +13,10 @@ class AuthContext:
     method: str
     subject: str
     email: str = ""
+    first_name: str = ""
+    last_name: str = ""
+    must_change_password: bool = False
+    is_admin: bool = False
 
 
 def _configured_keys() -> set[str]:
@@ -43,9 +47,13 @@ def validate_api_key(token: str) -> AuthContext | None:
 
 
 def validate_credentials(token: str) -> AuthContext | None:
+    from docintel.auth.local_tokens import validate_local_token
     from docintel.auth.oidc import validate_oidc_token
 
     api_match = validate_api_key(token)
     if api_match is not None:
         return api_match
+    local_match = validate_local_token(token)
+    if local_match is not None:
+        return local_match
     return validate_oidc_token(token)

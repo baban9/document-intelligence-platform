@@ -11,6 +11,7 @@ export type AuthConfig = {
   oidc_enabled: boolean;
   oidc_client_id: string;
   oidc_scopes: string;
+  local_auth_enabled: boolean;
 };
 
 export type AuthMe = {
@@ -18,6 +19,35 @@ export type AuthMe = {
   method?: string;
   subject?: string;
   email?: string;
+  first_name?: string;
+  last_name?: string;
+  must_change_password?: boolean;
+  is_admin?: boolean;
+};
+
+export type UserAccount = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  is_active: boolean;
+  is_admin: boolean;
+  must_change_password: boolean;
+  created_at: string | null;
+  last_login_at: string | null;
+};
+
+export type LoginEvent = {
+  id: string;
+  user_id: string;
+  email: string;
+  method: string;
+  ip_address: string;
+  user_agent: string;
+  success: boolean;
+  failure_reason: string;
+  created_at: string | null;
 };
 
 export type { JsonRecord };
@@ -654,6 +684,7 @@ export async function fetchAuthConfig(): Promise<AuthConfig> {
     oidc_enabled: Boolean(payload.oidc_enabled),
     oidc_client_id: String(payload.oidc_client_id ?? ""),
     oidc_scopes: String(payload.oidc_scopes ?? ""),
+    local_auth_enabled: Boolean(payload.local_auth_enabled),
   };
 }
 
@@ -665,7 +696,79 @@ export async function fetchAuthMe(): Promise<AuthMe> {
     method: typeof payload.method === "string" ? payload.method : undefined,
     subject: typeof payload.subject === "string" ? payload.subject : undefined,
     email: typeof payload.email === "string" ? payload.email : undefined,
+    first_name: typeof payload.first_name === "string" ? payload.first_name : undefined,
+    last_name: typeof payload.last_name === "string" ? payload.last_name : undefined,
+    must_change_password: Boolean(payload.must_change_password),
+    is_admin: Boolean(payload.is_admin),
   };
+}
+
+export async function loginWithPassword(email: string, password: string): Promise<{
+  access_token: string;
+  must_change_password: boolean;
+  user: UserAccount;
+}> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await parseJson(response);
+  return {
+    access_token: String(payload.access_token ?? ""),
+    must_change_password: Boolean(payload.must_change_password),
+    user: payload.user as UserAccount,
+  };
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ access_token: string; user: UserAccount }> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+  const payload = await parseJson(response);
+  return {
+    access_token: String(payload.access_token ?? ""),
+    user: payload.user as UserAccount,
+  };
+}
+
+export async function onboardUser(input: {
+  first_name: string;
+  last_name: string;
+  email: string;
+}): Promise<{ user: UserAccount; temporary_password: string; message: string }> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/users/onboard`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = await parseJson(response);
+  return {
+    user: payload.user as UserAccount,
+    temporary_password: String(payload.temporary_password ?? ""),
+    message: String(payload.message ?? ""),
+  };
+}
+
+export async function fetchUsers(): Promise<UserAccount[]> {
+  const response = await apiFetch(`${API_BASE}/v1/auth/users`);
+  const payload = await parseJson(response);
+  return Array.isArray(payload.users) ? (payload.users as UserAccount[]) : [];
+}
+
+export async function fetchLoginEvents(userId?: string): Promise<LoginEvent[]> {
+  const query = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+  const response = await apiFetch(`${API_BASE}/v1/auth/login-events${query}`);
+  const payload = await parseJson(response);
+  return Array.isArray(payload.events) ? (payload.events as LoginEvent[]) : [];
 }
 
 export async function exchangeOidcCode(code: string, redirectUri: string): Promise<string> {

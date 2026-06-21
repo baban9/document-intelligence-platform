@@ -38,3 +38,34 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_created ON audit_log(tenant_slug, created_at DESC);
 
 ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS llm_api_key_owner VARCHAR(128) NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(128) NOT NULL DEFAULT '',
+    last_name VARCHAR(128) NOT NULL DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
+
+CREATE TABLE IF NOT EXISTS login_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    email VARCHAR(255) NOT NULL DEFAULT '',
+    method VARCHAR(32) NOT NULL DEFAULT 'local',
+    ip_address VARCHAR(64) NOT NULL DEFAULT '',
+    user_agent VARCHAR(512) NOT NULL DEFAULT '',
+    success BOOLEAN NOT NULL,
+    failure_reason VARCHAR(255) NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_events_user_created ON login_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_events_created ON login_events(created_at DESC);

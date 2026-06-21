@@ -8,9 +8,11 @@ import {
   type ReactNode,
 } from "react";
 import {
+  changePassword as apiChangePassword,
   exchangeOidcCode,
   fetchAuthConfig,
   fetchAuthMe,
+  loginWithPassword as apiLoginWithPassword,
   oidcLoginUrl,
   type AuthConfig,
   type AuthMe,
@@ -30,6 +32,8 @@ type AuthContextValue = {
   loading: boolean;
   error: string | null;
   loginWithOidc: () => void;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
   refreshAuth: () => Promise<void>;
 };
@@ -101,6 +105,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = oidcLoginUrl(window.location.origin + "/", state);
   }, [config]);
 
+  const loginWithPassword = useCallback(
+    async (email: string, password: string) => {
+      if (!config?.local_auth_enabled) {
+        throw new Error("Email and password login is not enabled on this server.");
+      }
+      const result = await apiLoginWithPassword(email, password);
+      saveAuthToken(result.access_token);
+      await refreshAuth();
+    },
+    [config, refreshAuth],
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const result = await apiChangePassword(currentPassword, newPassword);
+      saveAuthToken(result.access_token);
+      await refreshAuth();
+    },
+    [refreshAuth],
+  );
+
   const logout = useCallback(() => {
     clearAuthToken();
     clearOidcState();
@@ -114,10 +139,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       loginWithOidc,
+      loginWithPassword,
+      changePassword,
       logout,
       refreshAuth,
     }),
-    [config, user, loading, error, loginWithOidc, logout, refreshAuth],
+    [config, user, loading, error, loginWithOidc, loginWithPassword, changePassword, logout, refreshAuth],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

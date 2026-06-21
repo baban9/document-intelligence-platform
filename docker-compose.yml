@@ -92,6 +92,8 @@ services:
       DOCINTEL_OIDC_CLIENT_ID: ${DOCINTEL_OIDC_CLIENT_ID:-}
       DOCINTEL_OIDC_CLIENT_SECRET: ${DOCINTEL_OIDC_CLIENT_SECRET:-}
       DOCINTEL_OIDC_SCOPES: ${DOCINTEL_OIDC_SCOPES:-openid profile email}
+      DOCINTEL_JWT_SECRET: ${DOCINTEL_JWT_SECRET:-}
+      DOCINTEL_JWT_TTL_HOURS: ${DOCINTEL_JWT_TTL_HOURS:-24}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:

@@ -13,6 +13,8 @@ PUBLIC_PREFIXES = (
     "/metrics",
     "/v1/auth/config",
     "/v1/auth/me",
+    "/v1/auth/login",
+    "/v1/auth/users/onboard",
     "/v1/auth/oidc/login",
     "/v1/auth/oidc/token",
 )

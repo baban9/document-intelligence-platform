@@ -21,6 +21,71 @@ def _api_headers() -> dict[str, str]:
     if API_KEY.strip():
         return {"Authorization": f"Bearer {API_KEY.strip()}"}
     return {}
+
+
+def list_pii_entity_choices() -> list[str]:
+    """Presidio entity types for UI pickers (API first, local default fallback)."""
+    try:
+        response = requests.get(f"{API_BASE}/v1/pdf/entities", headers=_api_headers(), timeout=10)
+        if response.ok:
+            payload = response.json()
+            supported = payload.get("supported_entities")
+            if isinstance(supported, list) and supported:
+                return sorted(str(item) for item in supported)
+    except requests.RequestException:
+        pass
+    from docintel.capabilities.compliance.presets import DEFAULT_PII_ENTITIES
+
+    return sorted(DEFAULT_PII_ENTITIES)
+
+
+def default_pii_entity_selection(choices: list[str] | None = None) -> list[str]:
+    """Default checked entities for new sessions."""
+    from docintel.capabilities.compliance.presets import DEFAULT_PII_ENTITIES
+
+    available = set(choices or list_pii_entity_choices())
+    return [entity for entity in DEFAULT_PII_ENTITIES if entity in available]
+
+
+def resolve_pii_entity_list(
+    *,
+    vertical: str = "",
+    selected_entities: list[str] | None = None,
+    entities_text: str = "",
+) -> str | None:
+    """Build comma-separated Presidio entities for API form fields."""
+    if vertical.strip():
+        return None
+    chosen: list[str] = []
+    seen: set[str] = set()
+    for entity in list(selected_entities or []):
+        key = entity.strip()
+        if key and key not in seen:
+            seen.add(key)
+            chosen.append(key)
+    if entities_text.strip():
+        for entity in entities_text.split(","):
+            key = entity.strip()
+            if key and key not in seen:
+                seen.add(key)
+                chosen.append(key)
+    if not chosen:
+        return None
+    return ",".join(chosen)
+
+
+def pii_entities_for_vertical(vertical: str) -> list[str]:
+    """Entity checklist values when a vertical preset is selected."""
+    if not vertical.strip():
+        return default_pii_entity_selection()
+    from docintel.capabilities.compliance.presets import entities_for_vertical
+
+    try:
+        return list(entities_for_vertical(vertical))
+    except ValueError:
+        return default_pii_entity_selection()
+
+
 GRADIO_HOST = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
 GRADIO_PORT = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
 
@@ -135,6 +200,7 @@ def annotate_pdf_ui(pdf_file: Any, pattern: str, action: str) -> tuple[Any, str]
 def detect_sensitive_ui(
     pdf_file: Any,
     action: str,
+    selected_entities: list[str],
     entities: str,
     force_ocr: bool,
     add_text_layer: bool,
@@ -147,8 +213,9 @@ def detect_sensitive_ui(
         "force_ocr": str(force_ocr).lower(),
         "add_text_layer": str(add_text_layer).lower(),
     }
-    if entities.strip():
-        data["entities"] = entities.strip()
+    entity_csv = resolve_pii_entity_list(selected_entities=selected_entities, entities_text=entities)
+    if entity_csv:
+        data["entities"] = entity_csv
 
     with path.open("rb") as handle:
         response = requests.post(
@@ -331,24 +398,46 @@ def summarize_document_ui(upload_file: Any, sentences: int) -> str:
     )
 
 
-def detect_pii_document_ui(upload_file: Any) -> str:
+def detect_pii_document_ui(
+    upload_file: Any,
+    selected_entities: list[str],
+    entities: str,
+) -> str:
     path = resolve_upload_path(upload_file)
     if path is None:
         return "Upload a document."
-    return _post_document_file("/v1/documents/detect-pii", path)
+    data: dict[str, str] = {}
+    entity_csv = resolve_pii_entity_list(selected_entities=selected_entities, entities_text=entities)
+    if entity_csv:
+        data["entities"] = entity_csv
+    return _post_document_file("/v1/documents/detect-pii", path, data=data or None)
 
 
 def format_integrity_summary(result: dict[str, Any]) -> str:
     summary = result.get("summary") or {}
     by_severity = summary.get("by_severity") or {}
     by_category = summary.get("by_category") or {}
+    severity_parts = [f"{_severity_label(k)}: {v}" for k, v in sorted(by_severity.items())]
+    category_parts = [f"{k}: {v}" for k, v in sorted(by_category.items())]
     lines = [
         f"Finding count: {result.get('finding_count', 0)}",
         f"Checks run: {', '.join(result.get('checks_run') or [])}",
-        f"By severity: {json.dumps(by_severity, sort_keys=True)}",
-        f"By category: {json.dumps(by_category, sort_keys=True)}",
+        f"By severity: {', '.join(severity_parts) if severity_parts else 'none'}",
+        f"By category: {', '.join(category_parts) if category_parts else 'none'}",
     ]
     return "\n".join(lines)
+
+
+def _severity_label(severity: str) -> str:
+    """Text prefix so severity is readable without relying on color alone."""
+    key = severity.strip().lower()
+    if key in {"high", "critical"}:
+        return f"[!] {severity.upper()}"
+    if key == "medium":
+        return f"[~] {severity.upper()}"
+    if key == "low":
+        return f"[.] {severity.upper()}"
+    return severity.upper() or "UNKNOWN"
 
 
 def format_integrity_findings_table(result: dict[str, Any]) -> list[list[str]]:
@@ -360,7 +449,7 @@ def format_integrity_findings_table(result: dict[str, Any]) -> list[list[str]]:
             quote = str(evidence[0].get("quote", ""))
         rows.append(
             [
-                str(finding.get("severity", "")),
+                _severity_label(str(finding.get("severity", ""))),
                 str(finding.get("category", "")),
                 str(finding.get("description", "")),
                 quote,
@@ -439,6 +528,7 @@ def process_document_ui(
     include_pii: bool,
     include_text: bool,
     vertical: str,
+    selected_entities: list[str],
     entities: str,
 ) -> str:
     """Run unified extract, classify, summarize, and PII pipeline via async jobs."""
@@ -454,8 +544,13 @@ def process_document_ui(
     }
     if vertical.strip():
         data["vertical"] = vertical.strip()
-    elif entities.strip():
-        data["entities"] = entities.strip()
+    else:
+        entity_csv = resolve_pii_entity_list(
+            selected_entities=selected_entities,
+            entities_text=entities,
+        )
+        if entity_csv:
+            data["entities"] = entity_csv
 
     with path.open("rb") as handle:
         response = requests.post(
@@ -548,80 +643,83 @@ def _select_feature_panel(selected: str) -> list[Any]:
 
 _DEMO_THEME = None
 
-
-# Orange-only palette (no black or grey UI chrome).
-_ORANGE = "#e8622a"
-_ORANGE_DARK = "#c2410c"
-_ORANGE_MID = "#ea580c"
-_ORANGE_LIGHT = "#fff4ed"
-_ORANGE_SOFT = "#ffedd5"
-_ORANGE_BORDER = "#fdba74"
-_WHITE = "#ffffff"
+# High-contrast palette (WCAG-friendly). Orange is reserved for primary actions only.
+_TEXT = "#0f172a"
+_TEXT_MUTED = "#475569"
+_BORDER = "#cbd5e1"
+_BG = "#ffffff"
+_BG_SOFT = "#f8fafc"
+_ACCENT = "#c2410c"
+_ACCENT_HOVER = "#9a3412"
+_NAV_ACTIVE_BAR = "#c2410c"
 
 
 def _demo_theme():
-    """White and orange UI only. No black or grey surfaces or text."""
+    """Light theme with dark text on white. Neutral chrome, orange call-to-action buttons."""
     global _DEMO_THEME
     if _DEMO_THEME is not None:
         return _DEMO_THEME
 
     import gradio as gr
 
-    text = _ORANGE_DARK
-    border = _ORANGE_BORDER
     _DEMO_THEME = (
-        gr.themes.Base(
+        gr.themes.Soft(
             primary_hue=gr.themes.colors.orange,
-            secondary_hue=gr.themes.colors.orange,
-            neutral_hue=gr.themes.colors.orange,
+            secondary_hue=gr.themes.colors.slate,
+            neutral_hue=gr.themes.colors.slate,
             font=gr.themes.GoogleFont("Inter"),
         )
         .set(
-            body_background_fill=_WHITE,
-            body_background_fill_dark=_WHITE,
-            block_background_fill=_WHITE,
-            block_background_fill_dark=_WHITE,
-            block_border_color=border,
+            body_background_fill=_BG,
+            body_background_fill_dark=_BG,
+            block_background_fill=_BG,
+            block_background_fill_dark=_BG,
+            block_border_color=_BORDER,
             block_border_width="1px",
-            block_label_text_color=text,
-            block_label_text_color_dark=text,
-            block_title_text_color=text,
-            block_title_text_color_dark=text,
-            body_text_color=text,
-            body_text_color_dark=text,
-            body_text_color_subdued=_ORANGE_MID,
-            body_text_color_subdued_dark=_ORANGE_MID,
-            button_primary_background_fill=_ORANGE,
-            button_primary_background_fill_hover="#cf5724",
-            button_primary_text_color=_WHITE,
-            button_secondary_background_fill=_WHITE,
-            button_secondary_background_fill_dark=_WHITE,
-            button_secondary_background_fill_hover=_ORANGE_LIGHT,
-            button_secondary_background_fill_hover_dark=_ORANGE_LIGHT,
-            button_secondary_text_color=_ORANGE_DARK,
-            button_secondary_text_color_dark=_ORANGE_DARK,
-            button_secondary_border_color=_ORANGE,
-            button_secondary_border_color_dark=_ORANGE,
-            input_background_fill=_WHITE,
-            input_background_fill_dark=_WHITE,
-            input_border_color=border,
-            input_border_color_dark=border,
-            input_placeholder_color=_ORANGE_MID,
-            input_placeholder_color_dark=_ORANGE_MID,
-            checkbox_label_background_fill=_WHITE,
-            checkbox_label_background_fill_dark=_WHITE,
-            checkbox_label_text_color=text,
-            checkbox_label_text_color_dark=text,
-            checkbox_label_border_color=_ORANGE,
-            checkbox_label_border_color_dark=_ORANGE,
-            slider_color=_ORANGE,
-            link_text_color=_ORANGE_DARK,
-            link_text_color_hover="#9a3412",
-            border_color_primary=border,
-            background_fill_primary=_WHITE,
-            background_fill_secondary=_ORANGE_LIGHT,
-            color_accent=_ORANGE,
-            color_accent_soft=_ORANGE_LIGHT,
+            block_label_text_color=_TEXT,
+            block_label_text_color_dark=_TEXT,
+            block_title_text_color=_TEXT,
+            block_title_text_color_dark=_TEXT,
+            body_text_color=_TEXT,
+            body_text_color_dark=_TEXT,
+            body_text_color_subdued=_TEXT_MUTED,
+            body_text_color_subdued_dark=_TEXT_MUTED,
+            button_primary_background_fill=_ACCENT,
+            button_primary_background_fill_hover=_ACCENT_HOVER,
+            button_primary_text_color=_BG,
+            button_secondary_background_fill=_BG,
+            button_secondary_background_fill_dark=_BG,
+            button_secondary_background_fill_hover=_BG_SOFT,
+            button_secondary_background_fill_hover_dark=_BG_SOFT,
+            button_secondary_text_color=_TEXT,
+            button_secondary_text_color_dark=_TEXT,
+            button_secondary_border_color=_BORDER,
+            button_secondary_border_color_dark=_BORDER,
+            input_background_fill=_BG,
+            input_background_fill_dark=_BG,
+            input_border_color=_BORDER,
+            input_border_color_dark=_BORDER,
+            input_placeholder_color=_TEXT_MUTED,
+            input_placeholder_color_dark=_TEXT_MUTED,
+            checkbox_label_background_fill=_BG,
+            checkbox_label_background_fill_dark=_BG,
+            checkbox_label_text_color=_TEXT,
+            checkbox_label_text_color_dark=_TEXT,
+            checkbox_label_border_color=_BORDER,
+            checkbox_label_border_color_dark=_BORDER,
+            slider_color=_ACCENT,
+            link_text_color=_ACCENT,
+            link_text_color_hover=_ACCENT_HOVER,
+            border_color_primary=_BORDER,
+            background_fill_primary=_BG,
+            background_fill_secondary=_BG_SOFT,
+            color_accent=_ACCENT,
+            color_accent_soft=_BG_SOFT,
+            table_even_background_fill=_BG_SOFT,
+            table_odd_background_fill=_BG,
+            table_border_color=_BORDER,
+            table_text_color=_TEXT,
+            table_text_color_dark=_TEXT,
         )
     )
     return _DEMO_THEME
@@ -629,185 +727,189 @@ def _demo_theme():
 
 _APP_CSS = f"""
 .gradio-container {{
-    background: {_WHITE} !important;
-    color: {_ORANGE_DARK} !important;
-    max-width: 100% !important;
+    background: {_BG} !important;
+    color: {_TEXT} !important;
+    max-width: 1200px !important;
+    font-size: 15px !important;
+    line-height: 1.55 !important;
 }}
-.gradio-container .prose, .gradio-container label, .gradio-container p,
-.gradio-container span, .gradio-container h1, .gradio-container h2,
-.gradio-container h3, .gradio-container h4, .gradio-container legend {{
-    color: {_ORANGE_DARK} !important;
+.gradio-container .prose,
+.gradio-container label,
+.gradio-container p,
+.gradio-container span,
+.gradio-container h1,
+.gradio-container h2,
+.gradio-container h3,
+.gradio-container h4,
+.gradio-container legend {{
+    color: {_TEXT} !important;
 }}
-.gradio-container code, .gradio-container pre {{
-    background: {_ORANGE_LIGHT} !important;
-    color: {_ORANGE_DARK} !important;
-    border: 1px solid {_ORANGE_BORDER} !important;
+.gradio-container code,
+.gradio-container pre {{
+    background: {_BG_SOFT} !important;
+    color: {_TEXT} !important;
+    border: 1px solid {_BORDER} !important;
 }}
-.app-shell {{ gap: 0 !important; align-items: stretch !important; min-height: 88vh; }}
+.app-shell {{
+    gap: 0 !important;
+    align-items: stretch !important;
+    min-height: 88vh;
+}}
 .sidebar {{
-    background: {_WHITE} !important;
-    border-right: 1px solid {_ORANGE_BORDER} !important;
-    padding: 1.25rem 0.85rem 1.5rem;
+    background: {_BG_SOFT} !important;
+    border-right: 1px solid {_BORDER} !important;
+    padding: 1.25rem 0.9rem 1.5rem;
 }}
 .sidebar-brand {{
     margin: 0 0 0.35rem 0 !important;
-    font-size: 1.05rem !important;
+    font-size: 1.1rem !important;
     font-weight: 700 !important;
-    color: {_ORANGE_DARK} !important;
+    color: {_TEXT} !important;
 }}
 .sidebar-status {{
-    font-size: 0.78rem !important;
-    color: {_ORANGE_MID} !important;
+    font-size: 0.85rem !important;
+    color: {_TEXT_MUTED} !important;
     margin-bottom: 0.75rem !important;
-    line-height: 1.4 !important;
+    line-height: 1.45 !important;
 }}
 .sidebar-section {{
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: {_ORANGE} !important;
-    margin: 1.1rem 0 0.45rem 0.15rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: {_TEXT_MUTED} !important;
+    margin: 1rem 0 0.35rem 0.15rem;
 }}
 .main-panel {{
-    padding: 1.35rem 1.75rem 2rem;
-    background: {_WHITE} !important;
+    padding: 1.5rem 1.75rem 2rem;
+    background: {_BG} !important;
 }}
 .panel-title {{
     margin-top: 0 !important;
     margin-bottom: 0.35rem !important;
-    color: {_ORANGE_DARK} !important;
+    color: {_TEXT} !important;
     font-weight: 700 !important;
+    font-size: 1.35rem !important;
 }}
 .panel-desc {{
-    color: {_ORANGE_MID} !important;
-    font-size: 0.92rem;
-    margin-bottom: 1.1rem !important;
-    line-height: 1.5 !important;
+    color: {_TEXT_MUTED} !important;
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem !important;
+    line-height: 1.55 !important;
+    max-width: 52rem;
 }}
-.sidebar .nav-btn {{ width: 100% !important; margin-bottom: 0.4rem !important; }}
+.sidebar .nav-btn {{
+    width: 100% !important;
+    margin-bottom: 0.35rem !important;
+}}
 .sidebar .nav-btn button,
 .sidebar .nav-btn .gr-button {{
     width: 100% !important;
     justify-content: flex-start !important;
     text-align: left !important;
-    font-weight: 600 !important;
-    font-size: 0.9rem !important;
-    border-radius: 8px !important;
-    min-height: 2.45rem !important;
+    font-weight: 500 !important;
+    font-size: 0.92rem !important;
+    border-radius: 6px !important;
+    min-height: 2.35rem !important;
     box-shadow: none !important;
-}}
-.sidebar .nav-btn button.secondary,
-.sidebar .nav-btn .secondary,
-.sidebar .nav-btn button:not(.primary) {{
-    background: {_WHITE} !important;
-    background-color: {_WHITE} !important;
-    color: {_ORANGE_DARK} !important;
-    border: 2px solid {_ORANGE} !important;
+    color: {_TEXT} !important;
+    background: {_BG} !important;
+    border: 1px solid {_BORDER} !important;
 }}
 .sidebar .nav-btn button.secondary:hover,
 .sidebar .nav-btn button:not(.primary):hover {{
-    background: {_ORANGE_LIGHT} !important;
-    color: {_ORANGE_DARK} !important;
-    border-color: #cf5724 !important;
+    background: {_BG} !important;
+    border-color: #94a3b8 !important;
 }}
 .sidebar .nav-btn button.primary,
 .sidebar .nav-btn .primary {{
-    background: {_ORANGE} !important;
-    background-color: {_ORANGE} !important;
-    color: {_WHITE} !important;
-    border: 2px solid {_ORANGE} !important;
+    background: {_BG} !important;
+    color: {_TEXT} !important;
+    border: 1px solid {_BORDER} !important;
+    border-left: 4px solid {_NAV_ACTIVE_BAR} !important;
+    font-weight: 700 !important;
+    padding-left: 0.65rem !important;
 }}
-.sidebar .nav-btn button.primary:hover {{
-    background: #cf5724 !important;
-    border-color: #cf5724 !important;
-    color: {_WHITE} !important;
+.main-panel .block,
+.main-panel .form,
+.main-panel .panel {{
+    border-color: {_BORDER} !important;
+    background: {_BG} !important;
 }}
 .main-panel label,
 .main-panel .label-wrap,
 .main-panel .label-wrap span,
 .main-panel .block-label,
-.main-panel .block label,
-.main-panel .form span,
-.main-panel .checkbox-group label,
-.main-panel .form-checkbox label {{
-    color: {_ORANGE_DARK} !important;
+.main-panel .block label {{
+    color: {_TEXT} !important;
     font-weight: 600 !important;
-    background: {_ORANGE_LIGHT} !important;
-    background-color: {_ORANGE_LIGHT} !important;
-    border-color: {_ORANGE_BORDER} !important;
-}}
-.main-panel input[type="checkbox"] {{
-    accent-color: {_ORANGE} !important;
-    border: 2px solid {_ORANGE} !important;
-    outline-color: {_ORANGE} !important;
-}}
-.main-panel .block,
-.main-panel .form,
-.main-panel .panel {{
-    border-color: {_ORANGE_BORDER} !important;
-    background: {_WHITE} !important;
+    background: transparent !important;
 }}
 .main-panel textarea,
 .main-panel input,
-.main-panel select,
-.main-panel .wrap input {{
-    color: {_ORANGE_DARK} !important;
-    background: {_WHITE} !important;
-    border-color: {_ORANGE_BORDER} !important;
+.main-panel select {{
+    color: {_TEXT} !important;
+    background: {_BG} !important;
+    border-color: {_BORDER} !important;
+    font-size: 0.95rem !important;
 }}
 .main-panel input::placeholder,
 .main-panel textarea::placeholder {{
-    color: {_ORANGE_MID} !important;
+    color: {_TEXT_MUTED} !important;
     opacity: 1 !important;
 }}
 .main-panel .file-upload,
-.main-panel .upload-container,
-.main-panel .upload-container .wrap {{
-    border: 2px dashed {_ORANGE} !important;
-    background: {_ORANGE_LIGHT} !important;
+.main-panel .upload-container {{
+    border: 1px dashed #94a3b8 !important;
+    background: {_BG_SOFT} !important;
 }}
-.main-panel .file-upload .wrap,
-.main-panel .upload-container .wrap,
 .main-panel .file-upload span,
 .main-panel .upload-container span,
 .main-panel .file-upload p,
-.main-panel .upload-container p,
-.main-panel .file-upload .icon-wrap,
-.main-panel .upload-container .icon-wrap,
-.main-panel .file-upload svg,
-.main-panel .upload-container svg {{
-    color: {_ORANGE_DARK} !important;
-    fill: {_ORANGE_DARK} !important;
-    stroke: {_ORANGE_DARK} !important;
-    opacity: 1 !important;
-}}
-.main-panel .slider-input input,
-.main-panel .wrap .number input {{
-    color: {_ORANGE_DARK} !important;
-}}
-.main-panel input[type="range"] {{
-    accent-color: {_ORANGE} !important;
-}}
-.main-panel .range-input input[type="range"] {{
-    background: {_ORANGE_SOFT} !important;
+.main-panel .upload-container p {{
+    color: {_TEXT} !important;
 }}
 .main-panel .primary > button,
 .main-panel button.primary {{
-    background: {_ORANGE} !important;
-    border-color: {_ORANGE} !important;
-    color: {_WHITE} !important;
+    background: {_ACCENT} !important;
+    border-color: {_ACCENT} !important;
+    color: {_BG} !important;
     font-weight: 600 !important;
+    font-size: 0.95rem !important;
+}}
+.main-panel .primary > button:hover,
+.main-panel button.primary:hover {{
+    background: {_ACCENT_HOVER} !important;
+    border-color: {_ACCENT_HOVER} !important;
 }}
 .main-panel .secondary > button,
 .main-panel button.secondary {{
-    background: {_WHITE} !important;
-    color: {_ORANGE_DARK} !important;
-    border: 1px solid {_ORANGE} !important;
+    background: {_BG} !important;
+    color: {_TEXT} !important;
+    border: 1px solid {_BORDER} !important;
 }}
-.main-panel .block > .label-wrap,
-.main-panel .block-label {{
-    background: {_ORANGE_LIGHT} !important;
-    color: {_ORANGE_DARK} !important;
+.findings-table table,
+.findings-table thead,
+.findings-table tbody,
+.findings-table tr,
+.findings-table th,
+.findings-table td {{
+    background: {_BG} !important;
+    color: {_TEXT} !important;
+    border: 1px solid {_BORDER} !important;
+    font-size: 0.9rem !important;
+    line-height: 1.45 !important;
+}}
+.findings-table thead th {{
+    background: {_BG_SOFT} !important;
+    font-weight: 700 !important;
+}}
+.findings-table tbody tr:nth-child(even) td {{
+    background: {_BG_SOFT} !important;
+}}
+.findings-table .table-wrap,
+.findings-table .wrap {{
+    background: {_BG} !important;
 }}
 """
 
@@ -824,6 +926,8 @@ def build_ui():
         "Strikeout",
     ]
     office_types = [".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json"]
+    pii_entity_choices = list_pii_entity_choices()
+    default_pii_entities = default_pii_entity_selection(pii_entity_choices)
 
     with gr.Blocks(
         title="Document Intelligence Platform",
@@ -875,9 +979,15 @@ def build_ui():
                         process_include_summary = gr.Checkbox(label="Include summary", value=True)
                         process_include_pii = gr.Checkbox(label="Include PII scan", value=True)
                         process_include_text = gr.Checkbox(label="Include extracted text", value=False)
+                    process_entity_picker = gr.CheckboxGroup(
+                        choices=pii_entity_choices,
+                        value=default_pii_entities,
+                        label="PII types to detect",
+                        info="Uncheck types you do not need. A vertical preset below replaces this list.",
+                    )
                     process_entities = gr.Textbox(
-                        label="PII entities override (comma-separated, optional)",
-                        placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
+                        label="Additional PII entities (optional)",
+                        placeholder="CUSTOM_ENTITY_NAME",
                     )
                     process_btn = gr.Button("Process document", variant="primary")
                     process_output = gr.Textbox(label="Results", lines=18)
@@ -886,7 +996,8 @@ def build_ui():
                     gr.Markdown("## Integrity analysis", elem_classes=["panel-title"])
                     gr.Markdown(
                         "Find placeholders, broken references, naming drift, number mismatches, "
-                        "and thin sections. Uses async jobs when Redis is available.",
+                        "and thin sections. Uses async jobs when Redis is available. "
+                        "Severity labels: `[!]` high, `[~]` medium, `[.]` low.",
                         elem_classes=["panel-desc"],
                     )
                     integrity_file = gr.File(label="Document upload", file_types=office_types)
@@ -906,6 +1017,8 @@ def build_ui():
                         headers=["Severity", "Category", "Description", "Evidence", "Suggested fix"],
                         label="Findings",
                         interactive=False,
+                        elem_classes=["findings-table"],
+                        wrap=True,
                     )
 
                 with gr.Group(visible=False) as tools_panel:
@@ -919,6 +1032,15 @@ def build_ui():
                         compare_file_a = gr.File(label="Compare document A", file_types=office_types)
                         compare_file_b = gr.File(label="Compare document B", file_types=office_types)
                     doc_sentences = gr.Slider(1, 10, value=3, step=1, label="Summary sentences")
+                    tools_entity_picker = gr.CheckboxGroup(
+                        choices=pii_entity_choices,
+                        value=default_pii_entities,
+                        label="PII types to detect",
+                    )
+                    tools_entities = gr.Textbox(
+                        label="Additional PII entities (optional)",
+                        placeholder="CUSTOM_ENTITY_NAME",
+                    )
                     with gr.Row():
                         identify_btn = gr.Button("Identify")
                         extract_btn = gr.Button("Extract text")
@@ -946,15 +1068,20 @@ def build_ui():
                 with gr.Group(visible=False) as sensitive_panel:
                     gr.Markdown("## Sensitive PDF", elem_classes=["panel-title"])
                     gr.Markdown(
-                        "OCR plus Presidio for scanned PDFs. Leave entities blank for the default preset.",
+                        "OCR plus Presidio for scanned PDFs. Choose which PII types to scan for.",
                         elem_classes=["panel-desc"],
                     )
                     sensitive_file = gr.File(label="PDF upload", file_types=[".pdf"])
+                    sensitive_entity_picker = gr.CheckboxGroup(
+                        choices=pii_entity_choices,
+                        value=default_pii_entities,
+                        label="PII types to detect",
+                    )
                     with gr.Row():
                         sensitive_action = gr.Dropdown(action_choices, value="Highlight", label="Action")
                         sensitive_entities = gr.Textbox(
-                            label="Presidio entities (optional)",
-                            placeholder="EMAIL_ADDRESS,PHONE_NUMBER,US_SSN",
+                            label="Additional PII entities (optional)",
+                            placeholder="CUSTOM_ENTITY_NAME",
                         )
                     with gr.Row():
                         sensitive_force_ocr = gr.Checkbox(label="Force OCR on all pages", value=False)
@@ -1010,6 +1137,12 @@ def build_ui():
                 outputs=[*panel_outputs, *nav_buttons],
             )
 
+        process_vertical.change(
+            fn=pii_entities_for_vertical,
+            inputs=process_vertical,
+            outputs=process_entity_picker,
+        )
+
         process_btn.click(
             process_document_ui,
             inputs=[
@@ -1019,6 +1152,7 @@ def build_ui():
                 process_include_pii,
                 process_include_text,
                 process_vertical,
+                process_entity_picker,
                 process_entities,
             ],
             outputs=process_output,
@@ -1036,7 +1170,11 @@ def build_ui():
             inputs=[doc_file, doc_sentences],
             outputs=doc_output,
         )
-        detect_pii_btn.click(detect_pii_document_ui, inputs=[doc_file], outputs=doc_output)
+        detect_pii_btn.click(
+            detect_pii_document_ui,
+            inputs=[doc_file, tools_entity_picker, tools_entities],
+            outputs=doc_output,
+        )
         compare_btn.click(
             compare_documents_ui,
             inputs=[compare_file_a, compare_file_b],
@@ -1052,6 +1190,7 @@ def build_ui():
             inputs=[
                 sensitive_file,
                 sensitive_action,
+                sensitive_entity_picker,
                 sensitive_entities,
                 sensitive_force_ocr,
                 sensitive_text_layer,

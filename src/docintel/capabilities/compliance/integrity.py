@@ -280,15 +280,33 @@ def _find_broken_references(text: str) -> list[IntegrityFinding]:
     return findings
 
 
+def _canonical_name(value: str) -> str:
+    """Collapse PDF/OCR whitespace so line breaks do not look like name drift."""
+    return re.sub(r"\s+", " ", value.strip())
+
+
 def _normalize_name(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", value.lower())
+    return re.sub(r"[^a-z0-9]+", "", _canonical_name(value).lower())
+
+
+def _distinct_name_variants(names: Iterable[str]) -> list[str]:
+    """Return unique surface forms after whitespace normalization."""
+    by_normalized: dict[str, str] = {}
+    for name in names:
+        cleaned = _canonical_name(name)
+        if not cleaned:
+            continue
+        key = _normalize_name(cleaned)
+        if key not in by_normalized:
+            by_normalized[key] = cleaned
+    return sorted(by_normalized.values(), key=str.lower)
 
 
 def _find_name_drift(text: str) -> list[IntegrityFinding]:
     counts: dict[str, dict[str, int]] = {}
     positions: dict[str, list[tuple[int, int, str]]] = {}
     for match in _NAME_CANDIDATE.finditer(text):
-        name = match.group(1).strip()
+        name = _canonical_name(match.group(1).strip())
         if name in _NAME_STOPWORDS or len(name) < 6:
             continue
         if name.isupper():
@@ -304,45 +322,51 @@ def _find_name_drift(text: str) -> list[IntegrityFinding]:
     reported: set[frozenset[str]] = set()
     keys = list(counts.keys())
     for index, left_key in enumerate(keys):
-        left_names = list(counts[left_key])
-        if len(left_names) > 1:
-            variant_set = frozenset(left_names)
+        left_variants = _distinct_name_variants(counts[left_key])
+        if len(left_variants) > 1:
+            variant_set = frozenset(left_variants)
             if variant_set not in reported:
                 reported.add(variant_set)
-                findings.append(_name_drift_finding(left_names, positions[left_key], text))
+                finding = _name_drift_finding(left_variants, positions[left_key], text)
+                if finding is not None:
+                    findings.append(finding)
 
         for right_key in keys[index + 1 :]:
-            left_names = list(counts[left_key])
-            right_names = list(counts[right_key])
+            left_variants = _distinct_name_variants(counts[left_key])
+            right_variants = _distinct_name_variants(counts[right_key])
             key_ratio = SequenceMatcher(None, left_key, right_key).ratio()
             if key_ratio >= 0.86 and key_ratio < 0.995:
-                variants = sorted(set(left_names + right_names))
+                variants = _distinct_name_variants(left_variants + right_variants)
                 variant_set = frozenset(variants)
-                if variant_set in reported:
+                if len(variants) < 2 or variant_set in reported:
                     continue
                 reported.add(variant_set)
                 combined_positions = positions[left_key] + positions[right_key]
-                findings.append(_name_drift_finding(variants, combined_positions, text))
+                finding = _name_drift_finding(variants, combined_positions, text)
+                if finding is not None:
+                    findings.append(finding)
                 continue
 
-            for left_name in left_names:
+            for left_name in left_variants:
                 left_tokens = left_name.split()
                 if not left_tokens:
                     continue
-                for right_name in right_names:
+                for right_name in right_variants:
                     right_tokens = right_name.split()
                     if not right_tokens or left_tokens[0] != right_tokens[0]:
                         continue
                     name_ratio = SequenceMatcher(None, left_name.lower(), right_name.lower()).ratio()
                     if name_ratio < 0.72 or name_ratio >= 0.995:
                         continue
-                    variants = sorted({left_name, right_name})
+                    variants = _distinct_name_variants([left_name, right_name])
                     variant_set = frozenset(variants)
-                    if variant_set in reported:
+                    if len(variants) < 2 or variant_set in reported:
                         continue
                     reported.add(variant_set)
                     combined_positions = positions[left_key] + positions[right_key]
-                    findings.append(_name_drift_finding(variants, combined_positions, text))
+                    finding = _name_drift_finding(variants, combined_positions, text)
+                    if finding is not None:
+                        findings.append(finding)
     return findings
 
 
@@ -350,18 +374,30 @@ def _name_drift_finding(
     variants: list[str],
     spans: list[tuple[int, int, str]],
     text: str,
-) -> IntegrityFinding:
+) -> IntegrityFinding | None:
+    unique_variants = _distinct_name_variants(variants)
+    if len(unique_variants) < 2:
+        return None
+
     evidence: list[IntegrityEvidence] = []
-    for start, end, name in spans[:4]:
+    seen_quotes: set[str] = set()
+    for start, end, name in spans:
+        quote = _canonical_name(name)
+        if quote in seen_quotes:
+            continue
+        seen_quotes.add(quote)
         evidence.append(
             IntegrityEvidence(
-                quote=name,
+                quote=quote,
                 start=start,
                 end=end,
                 context=_snippet(text, start, end),
             )
         )
-    joined = ", ".join(f"'{name}'" for name in variants)
+        if len(evidence) >= 4:
+            break
+
+    joined = ", ".join(f"'{name}'" for name in unique_variants)
     return IntegrityFinding(
         severity=SEVERITY_MEDIUM,
         category=CATEGORY_NAME_DRIFT,

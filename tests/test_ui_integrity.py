@@ -38,8 +38,9 @@ def test_format_integrity_summary_and_table():
 
     table = format_integrity_findings_table(result)
     assert len(table) == 2
-    assert table[0][0] == "high"
+    assert table[0][0] == "[!] HIGH"
     assert table[0][3] == "See Section 9.2"
+    assert table[1][0] == "[~] MEDIUM"
     assert table[1][1] == "placeholder"
 
 

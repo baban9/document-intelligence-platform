@@ -59,3 +59,33 @@ def test_integrity_requires_non_empty_text():
         assert "non-empty" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_name_drift_ignores_pdf_line_break_variants():
+    from docintel.capabilities.compliance.integrity import _find_name_drift
+
+    text = (
+        "Follow the Daily Operational Protocol each morning. "
+        "Daily \nOperational Protocol also applies in section two."
+    )
+    findings = _find_name_drift(text)
+    assert findings == []
+
+
+def test_name_drift_flags_article_and_spelling_differences():
+    from docintel.capabilities.compliance.integrity import _find_name_drift
+
+    text = (
+        "Contact the Data Security Coordinator for access. "
+        "Escalate to The Data Security Coordinator if needed. "
+        "Common Business Record Needs are listed in appendix A. "
+        "Common Business Records Needs appear again in appendix B."
+    )
+    findings = _find_name_drift(text)
+    descriptions = " ".join(f.description for f in findings)
+    assert "The Data Security Coordinator" in descriptions
+    assert "Common Business Record Needs" in descriptions
+    assert "Common Business Records Needs" in descriptions
+    assert not any(
+        desc.count("'Daily Operational Protocol'") >= 2 for desc in descriptions.split(".")
+    )

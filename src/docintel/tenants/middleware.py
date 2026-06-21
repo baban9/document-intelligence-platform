@@ -10,7 +10,7 @@ from docintel.db.connection import database_enabled
 from docintel.tenants.context import resolve_tenant_context, set_tenant_context
 
 TENANT_HEADER = "X-Tenant-Slug"
-DEFAULT_TENANT_SLUG = "acme-corp"
+DEFAULT_TENANT_SLUG = "admin"
 
 
 def multi_tenant_enabled() -> bool:

@@ -70,3 +70,5 @@ def test_pdf_editor_apply_edit_uses_llm(sample_pdf, monkeypatch):
         assert edit_payload["changes_summary"]
         assert "ZZZ999" in edit_payload["edited_text"]
         assert edit_payload["pages_edited"] == [0]
+        assert edit_payload["edit_count"] == 1
+        assert len(edit_payload["edit_history"]) == 1

@@ -6,13 +6,16 @@ import {
   type LoginEvent,
   type UserAccount,
 } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import { useTenant } from "../context/TenantContext";
 
 export function UsersPanel() {
-  const { isAdmin } = useTenant();
+  const { isAdmin: tenantIsAdmin } = useTenant();
+  const { user: authUser } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [makeAdmin, setMakeAdmin] = useState(false);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [events, setEvents] = useState<LoginEvent[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
@@ -20,6 +23,10 @@ export function UsersPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const bootstrapMode = users.length === 0;
+  const canManageUsers =
+    bootstrapMode || tenantIsAdmin || Boolean(authUser?.authenticated && authUser.is_admin);
 
   async function refresh() {
     setLoading(true);
@@ -52,12 +59,14 @@ export function UsersPanel() {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
+        is_admin: bootstrapMode || makeAdmin,
       });
       setTemporaryPassword(result.temporary_password);
       setMessage(result.message);
       setFirstName("");
       setLastName("");
       setEmail("");
+      setMakeAdmin(false);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not onboard user.");
@@ -66,11 +75,14 @@ export function UsersPanel() {
     }
   }
 
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <section className="panel">
         <h1>Users</h1>
-        <p className="result-muted">Switch to the admin tenant to onboard users and review login activity.</p>
+        <p className="result-muted">
+          Sign in as a platform admin, or select the admin tenant, to onboard users and review login
+          activity.
+        </p>
       </section>
     );
   }
@@ -79,7 +91,9 @@ export function UsersPanel() {
     <section className="panel">
       <h1>User onboarding</h1>
       <p className="result-muted">
-        Create accounts with a temporary password. Users must change their password on first login.
+        {bootstrapMode
+          ? "No users exist yet. Create the first platform admin account below."
+          : "Create accounts with a temporary password. Users must change their password on first login."}
       </p>
 
       <form className="settings-form" onSubmit={(event) => void onSubmit(event)}>
@@ -97,8 +111,18 @@ export function UsersPanel() {
             <span>Email</span>
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </label>
+          {!bootstrapMode ? (
+            <label className="field checkbox-field">
+              <input
+                type="checkbox"
+                checked={makeAdmin}
+                onChange={(event) => setMakeAdmin(event.target.checked)}
+              />
+              <span>Platform admin</span>
+            </label>
+          ) : null}
           <button type="submit" className="primary-button" disabled={submitting}>
-            {submitting ? "Creating..." : "Create user"}
+            {submitting ? "Creating..." : bootstrapMode ? "Create admin account" : "Create user"}
           </button>
         </fieldset>
       </form>

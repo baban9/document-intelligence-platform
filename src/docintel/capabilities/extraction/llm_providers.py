@@ -5,11 +5,24 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Any, Iterable
+from urllib.parse import urlparse
 
 SUPPORTED_PROVIDERS = ("groq", "gemini", "openai")
 
 _PROVIDER_ALIASES = {
     "google": "gemini",
+}
+
+_PROVIDER_DEFAULT_BASE_URLS: dict[str, str | None] = {
+    "groq": "https://api.groq.com/openai/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "openai": None,
+}
+
+_PROVIDER_HOST_MARKERS: dict[str, tuple[str, ...]] = {
+    "groq": ("groq.com",),
+    "gemini": ("googleapis.com",),
+    "openai": ("openai.com",),
 }
 
 
@@ -19,6 +32,57 @@ class LLMConfig:
     api_key: str
     model: str
     base_url: str | None
+
+
+def default_base_url(provider: str) -> str | None:
+    """Return the default OpenAI-compatible base URL for a provider."""
+    return _PROVIDER_DEFAULT_BASE_URLS.get(provider)
+
+
+def _host_from_url(base_url: str) -> str:
+    return (urlparse(base_url).hostname or "").lower()
+
+
+def base_url_matches_provider(provider: str, base_url: str) -> bool:
+    """True when base_url belongs to the provider or a custom non-conflicting host."""
+    host = _host_from_url(base_url)
+    if not host:
+        return False
+
+    own_markers = _PROVIDER_HOST_MARKERS.get(provider, ())
+    if any(marker in host for marker in own_markers):
+        return True
+
+    for other, markers in _PROVIDER_HOST_MARKERS.items():
+        if other == provider:
+            continue
+        if any(marker in host for marker in markers):
+            return False
+
+    return True
+
+
+def resolve_base_url(provider: str, base_url: str = "") -> str | None:
+    """Pick a base URL for the provider, ignoring stale URLs from another provider."""
+    stored = (base_url or _first_env(("DOCINTEL_LLM_BASE_URL",)) or "").strip()
+    if not stored:
+        return default_base_url(provider)
+    if base_url_matches_provider(provider, stored):
+        return stored
+    return default_base_url(provider)
+
+
+def sanitize_stored_base_url(provider: str, base_url: str) -> str:
+    """Normalize tenant-stored base URLs; drop values that conflict with the provider."""
+    stored = base_url.strip()
+    if not stored:
+        return ""
+    if not base_url_matches_provider(provider, stored):
+        return ""
+    default = default_base_url(provider)
+    if default and stored.rstrip("/") == default.rstrip("/"):
+        return ""
+    return stored
 
 
 def _normalize_provider(raw: str) -> str:
@@ -50,7 +114,6 @@ def resolve_llm_config() -> LLMConfig:
             provider,
             api_key=settings.llm_api_key,
             model=settings.llm_model,
-            base_url=settings.llm_base_url,
         )
 
     provider = _normalize_provider(os.getenv("DOCINTEL_LLM_PROVIDER", "groq"))
@@ -72,8 +135,8 @@ def _config_for_provider(
                 "Get a key at https://console.groq.com/keys"
             )
         resolved_model = model or os.getenv("DOCINTEL_LLM_MODEL", "llama-3.3-70b-versatile").strip()
-        resolved_base = base_url or os.getenv("DOCINTEL_LLM_BASE_URL", "https://api.groq.com/openai/v1").strip()
-        return LLMConfig(provider=provider, api_key=resolved_key, model=resolved_model, base_url=resolved_base or None)
+        resolved_base = resolve_base_url(provider, base_url)
+        return LLMConfig(provider=provider, api_key=resolved_key, model=resolved_model, base_url=resolved_base)
 
     if provider == "gemini":
         resolved_key = api_key or _first_env(("DOCINTEL_LLM_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"))
@@ -83,11 +146,8 @@ def _config_for_provider(
                 "Get a key at https://aistudio.google.com/apikey"
             )
         resolved_model = model or os.getenv("DOCINTEL_LLM_MODEL", "gemini-2.0-flash").strip()
-        resolved_base = base_url or os.getenv(
-            "DOCINTEL_LLM_BASE_URL",
-            "https://generativelanguage.googleapis.com/v1beta/openai/",
-        ).strip()
-        return LLMConfig(provider=provider, api_key=resolved_key, model=resolved_model, base_url=resolved_base or None)
+        resolved_base = resolve_base_url(provider, base_url)
+        return LLMConfig(provider=provider, api_key=resolved_key, model=resolved_model, base_url=resolved_base)
 
     resolved_key = api_key or _first_env(("DOCINTEL_LLM_API_KEY", "OPENAI_API_KEY"))
     if not resolved_key:
@@ -96,7 +156,7 @@ def _config_for_provider(
             "Get a key at https://platform.openai.com/api-keys"
         )
     resolved_model = model or os.getenv("DOCINTEL_LLM_MODEL", "gpt-4o-mini").strip()
-    resolved_base = base_url or os.getenv("DOCINTEL_LLM_BASE_URL", "").strip() or None
+    resolved_base = resolve_base_url(provider, base_url)
     return LLMConfig(provider=provider, api_key=resolved_key, model=resolved_model, base_url=resolved_base)
 
 

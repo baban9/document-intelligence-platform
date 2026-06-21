@@ -24,9 +24,9 @@ make up                # Redis, API, worker, React web UI (slim, fast app rebuil
 make launch            # start stack, wait for health, run e2e smoke test
 ```
 
-First run (or after dependency changes) builds a heavy base image with spaCy and Presidio: `make docker-build-base`. Later `make up` only rebuilds the thin app layer.
+First run (or after dependency changes) builds a heavy base image with spaCy, Presidio, PyTorch, and EasyOCR: `make docker-build-base`. Later `make up` only rebuilds the thin app layer and does not re-download models.
 
-Stop everything with `make down`. For scanned PDF OCR (PyTorch in base image), use `make up-ocr`.
+Stop everything with `make down`. OCR for scanned PDFs uses the same base image; set `DOCINTEL_DOCKER_TARGET=ocr` with `make up-ocr` if you want the OCR app tag.
 
 **LLM in Docker:** Set `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` (never commit real keys). Default provider is Groq. No local model server is bundled.
 
@@ -39,8 +39,7 @@ Stop everything with `make down`. For scanned PDF OCR (PyTorch in base image), u
 | `make e2e` | Run e2e smoke test against an already running stack |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
-| `make docker-build-base` | Build spaCy + Presidio base image (run once or when deps change) |
-| `make docker-build-base-ocr` | Build slim + OCR (PyTorch) base images |
+| `make docker-build-base` | Build shared base (spaCy, Presidio, PyTorch, EasyOCR) |
 | `make docker-up` | Slim core only: Redis, API, worker (no UI) |
 | `make docker-up-ui` | Add web UI when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |

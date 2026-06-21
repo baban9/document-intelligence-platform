@@ -92,6 +92,24 @@ def test_custom_model_and_base_url_override(monkeypatch):
     assert config.base_url == "https://api.groq.com/openai/v1"
 
 
+def test_groq_ignores_stale_openai_base_url(monkeypatch):
+    from docintel.capabilities.extraction.llm_providers import (
+        _config_for_provider,
+        resolve_base_url,
+        sanitize_stored_base_url,
+    )
+
+    assert resolve_base_url("groq", "https://api.openai.com/v1") == "https://api.groq.com/openai/v1"
+    assert sanitize_stored_base_url("groq", "https://api.openai.com/v1") == ""
+
+    config = _config_for_provider(
+        "groq",
+        api_key="gsk-test",
+        base_url="https://api.openai.com/v1",
+    )
+    assert config.base_url == "https://api.groq.com/openai/v1"
+
+
 def test_chat_json_completion_falls_back_without_response_format(monkeypatch):
     class FakeMessage:
         content = '{"ok": true}'

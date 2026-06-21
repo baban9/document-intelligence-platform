@@ -62,6 +62,14 @@ def _auth_me_payload(context) -> dict:
     return payload
 
 
+def _caller_is_platform_admin() -> bool:
+    tenant = getattr(g, "tenant", None)
+    if tenant is not None and tenant.is_admin:
+        return True
+    context = get_auth_context()
+    return context is not None and context.method == "local" and context.is_admin
+
+
 def _can_manage_users() -> tuple[bool, str]:
     if not local_auth_enabled():
         return False, "Local user accounts require PostgreSQL."
@@ -69,12 +77,7 @@ def _can_manage_users() -> tuple[bool, str]:
     if count_users() == 0:
         return True, ""
 
-    tenant = getattr(g, "tenant", None)
-    if tenant is not None and tenant.is_admin:
-        return True, ""
-
-    context = get_auth_context()
-    if context is not None and context.method == "local" and context.is_admin:
+    if _caller_is_platform_admin():
         return True, ""
 
     return False, "Admin access is required to manage users."
@@ -237,6 +240,8 @@ def onboard_user():
 
     temporary_password = generate_temporary_password()
     bootstrap = count_users() == 0
+    requested_admin = bool(payload.get("is_admin", False))
+    is_admin = bootstrap or (requested_admin and _caller_is_platform_admin())
     try:
         user = create_user(
             first_name=first_name,
@@ -244,7 +249,7 @@ def onboard_user():
             email=email,
             password=temporary_password,
             must_change_password=True,
-            is_admin=bootstrap,
+            is_admin=is_admin,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400

@@ -13,7 +13,9 @@ from docintel.capabilities.extraction.llm_providers import (
 
 EDIT_SYSTEM_PROMPT = """You edit document page text according to user instructions.
 Rules:
-- Apply only the changes the user requested.
+- The source text may already include prior edits from this session. Treat it as the current truth.
+- Apply only the new changes the user requested on top of that text.
+- Do not revert, drop, or rewrite unrelated content from earlier edits unless the user asks.
 - Do not invent facts, numbers, names, or clauses that are not supported by the source.
 - Preserve all content that the user did not ask to change.
 - Return valid JSON only."""

@@ -189,6 +189,20 @@ export function PdfEditorPanel() {
               ) : null}
             </div>
 
+            {pageState?.edit_history?.length ? (
+              <details className="pdf-editor-text-details" open>
+                <summary>Edit history ({pageState.edit_history.length})</summary>
+                <ol className="pdf-editor-history-list">
+                  {pageState.edit_history.map((entry, index) => (
+                    <li key={`${index}-${entry.instruction}`}>
+                      <strong>{entry.instruction}</strong>
+                      <span className="result-muted"> {entry.changes_summary}</span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ) : null}
+
             {pageState?.text ? (
               <details className="pdf-editor-text-details">
                 <summary>Page text</summary>

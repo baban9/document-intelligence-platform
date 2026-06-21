@@ -134,7 +134,7 @@ def put_settings(slug: str):
         return jsonify({"error": f"Unsupported LLM provider '{provider}'."}), 400
 
     model = str(payload.get("llm_model", "")).strip()
-    base_url = str(payload.get("llm_base_url", "")).strip()
+    base_url = ""
     api_key_raw = payload.get("llm_api_key")
     api_key = str(api_key_raw).strip() if isinstance(api_key_raw, str) and api_key_raw.strip() else None
 
@@ -175,7 +175,6 @@ def put_settings(slug: str):
 def list_llm_models():
     """List models for a provider from the live provider API when possible."""
     provider = request.args.get("provider", "groq").strip().lower()
-    base_url = request.args.get("base_url", "").strip()
     explicit_key = request.args.get("api_key", "").strip()
     tenant_slug = request.args.get("tenant_slug", "").strip()
 
@@ -198,7 +197,7 @@ def list_llm_models():
                 tenant_key = settings.llm_api_key or ""
 
     api_key = resolve_models_api_key(provider, explicit_key, tenant_key)
-    models, source, warning = fetch_provider_models(provider, api_key=api_key, base_url=base_url)
+    models, source, warning = fetch_provider_models(provider, api_key=api_key)
 
     payload: dict[str, object] = {
         "status": "ok",

@@ -61,8 +61,7 @@ pii = [
     "presidio-analyzer>=2.2.354",
     "spacy>=3.7.0",
 ]
-# Scanned PDF OCR (EasyOCR). Install CPU torch before this extra in Docker:
-# pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Scanned PDF OCR (EasyOCR). In Docker, torch and torchvision are pinned in requirements/docker-base-torch.txt.
 ocr = [
     "easyocr>=1.7.2",
     "opencv-python-headless>=4.10.0",

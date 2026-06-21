@@ -19,12 +19,33 @@ SESSION_FILENAME = "editor_session.json"
 
 
 @dataclass
+class PageEditRecord:
+    instruction: str
+    changes_summary: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "instruction": self.instruction,
+            "changes_summary": self.changes_summary,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> PageEditRecord:
+        return cls(
+            instruction=str(payload.get("instruction", "")),
+            changes_summary=str(payload.get("changes_summary", "")),
+        )
+
+
+@dataclass
 class EditorSession:
     session_id: str
     work_dir: Path
     source_filename: str
     page_count: int
     pages_edited: list[int] = field(default_factory=list)
+    page_texts: dict[int, str] = field(default_factory=dict)
+    edit_history: dict[int, list[PageEditRecord]] = field(default_factory=dict)
 
     @property
     def working_path(self) -> Path:
@@ -45,8 +66,43 @@ class EditorSession:
             "filename": self.source_filename,
             "page_count": self.page_count,
             "pages_edited": sorted(set(self.pages_edited)),
+            "page_texts": {str(page): text for page, text in sorted(self.page_texts.items())},
+            "edit_history": {
+                str(page): [record.to_dict() for record in records]
+                for page, records in sorted(self.edit_history.items())
+            },
         }
         (self.work_dir / SESSION_FILENAME).write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _parse_page_texts(raw: Any) -> dict[int, str]:
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[int, str] = {}
+    for key, value in raw.items():
+        try:
+            page_index = int(key)
+        except (TypeError, ValueError):
+            continue
+        parsed[page_index] = str(value)
+    return parsed
+
+
+def _parse_edit_history(raw: Any) -> dict[int, list[PageEditRecord]]:
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[int, list[PageEditRecord]] = {}
+    for key, value in raw.items():
+        try:
+            page_index = int(key)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(value, list):
+            continue
+        records = [PageEditRecord.from_dict(item) for item in value if isinstance(item, dict)]
+        if records:
+            parsed[page_index] = records
+    return parsed
 
 
 def _load_session(work_dir: Path, session_id: str) -> EditorSession:
@@ -60,6 +116,8 @@ def _load_session(work_dir: Path, session_id: str) -> EditorSession:
         source_filename=str(payload["filename"]),
         page_count=int(payload["page_count"]),
         pages_edited=[int(page) for page in payload.get("pages_edited", [])],
+        page_texts=_parse_page_texts(payload.get("page_texts", {})),
+        edit_history=_parse_edit_history(payload.get("edit_history", {})),
     )
 
 
@@ -160,6 +218,14 @@ def rewrite_page_text(pdf_path: Path, page_index: int, new_text: str) -> None:
         pdf.close()
 
 
+def _current_page_text(session: EditorSession, page_index: int) -> tuple[str, str]:
+    """Return canonical page text and a source label."""
+    stored = session.page_texts.get(page_index)
+    if stored is not None and stored.strip():
+        return stored, "session"
+    return extract_page_text(session.working_path, page_index)
+
+
 def page_state(session: EditorSession, page_index: int) -> dict[str, Any]:
     """Return page text and ensure a PNG preview exists."""
     if page_index < 0 or page_index >= session.page_count:
@@ -169,7 +235,8 @@ def page_state(session: EditorSession, page_index: int) -> dict[str, Any]:
     if not preview.is_file():
         render_page_preview(session.working_path, page_index, preview)
 
-    text, text_source = extract_page_text(session.working_path, page_index)
+    text, text_source = _current_page_text(session, page_index)
+    history = session.edit_history.get(page_index, [])
     return {
         "session_id": session.session_id,
         "page": page_index,
@@ -178,14 +245,24 @@ def page_state(session: EditorSession, page_index: int) -> dict[str, Any]:
         "text_source": text_source,
         "preview_url": f"/v1/pdf/editor/session/{session.session_id}/pages/{page_index}/preview",
         "pages_edited": sorted(set(session.pages_edited)),
+        "edit_history": [record.to_dict() for record in history],
+        "edit_count": len(history),
         "download_url": session.to_dict()["download_url"],
     }
 
 
 def apply_page_edit(session: EditorSession, page_index: int, instruction: str) -> dict[str, Any]:
     """Use the LLM to edit one page and refresh the working PDF."""
-    current_text, _ = extract_page_text(session.working_path, page_index)
+    current_text, _ = _current_page_text(session, page_index)
     edited_text, changes_summary = edit_page_text_with_llm(page_index, current_text, instruction)
+    session.page_texts[page_index] = edited_text
+    history = session.edit_history.setdefault(page_index, [])
+    history.append(
+        PageEditRecord(
+            instruction=instruction.strip(),
+            changes_summary=changes_summary,
+        )
+    )
     rewrite_page_text(session.working_path, page_index, edited_text)
     if page_index not in session.pages_edited:
         session.pages_edited.append(page_index)

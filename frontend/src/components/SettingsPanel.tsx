@@ -26,7 +26,6 @@ export function SettingsPanel() {
   const { user: authUser } = useAuth();
   const [llmProvider, setLlmProvider] = useState("groq");
   const [llmModel, setLlmModel] = useState("");
-  const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
   const [apiKeySet, setApiKeySet] = useState(false);
   const [apiKeyOwnerMatch, setApiKeyOwnerMatch] = useState(false);
@@ -49,18 +48,14 @@ export function SettingsPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [piiWarning, setPiiWarning] = useState<string | null>(null);
 
-  async function refreshModels(
-    provider = llmProvider,
-    baseUrl = llmBaseUrl,
-    options?: { openModal?: boolean },
-  ) {
+  async function refreshModels(provider = llmProvider, options?: { openModal?: boolean }) {
     if (options?.openModal) {
       setModelModalOpen(true);
     }
     setRefreshingModels(true);
     setError(null);
     try {
-      const models = await fetchLlmModels(provider, baseUrl, {
+      const models = await fetchLlmModels(provider, {
         apiKey: llmApiKey,
         tenantSlug,
       });
@@ -80,7 +75,7 @@ export function SettingsPanel() {
   function handleProviderChange(nextProvider: string) {
     setLlmProvider(nextProvider);
     if (LIVE_MODEL_PROVIDERS.has(nextProvider)) {
-      void refreshModels(nextProvider, llmBaseUrl, { openModal: true });
+      void refreshModels(nextProvider, { openModal: true });
     }
   }
 
@@ -101,10 +96,8 @@ export function SettingsPanel() {
           return;
         }
         const provider = String(settings.llm_provider ?? "groq");
-        const baseUrl = String(settings.llm_base_url ?? "");
         setLlmProvider(provider);
         setLlmModel(String(settings.llm_model ?? ""));
-        setLlmBaseUrl(baseUrl);
         setApiKeySet(Boolean(settings.llm_api_key_set));
         setApiKeyOwnerMatch(Boolean(settings.llm_api_key_owner_match));
         setApiKeyLocked(Boolean(settings.llm_api_key_locked));
@@ -116,7 +109,7 @@ export function SettingsPanel() {
         );
         setPresetMap(presets);
         setActivePreset("");
-        await refreshModels(provider, baseUrl);
+        await refreshModels(provider);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Could not load settings.");
@@ -179,7 +172,6 @@ export function SettingsPanel() {
       const updated = await updateTenantSettings(tenantSlug, {
         llm_provider: llmProvider,
         llm_model: llmModel,
-        llm_base_url: llmBaseUrl,
         llm_api_key: llmApiKey.trim() || undefined,
         pii_entities: entities,
       });
@@ -204,7 +196,7 @@ export function SettingsPanel() {
       <header className="panel-header">
         <h1>Settings</h1>
         <p>
-          Configure LLM and PII options for tenant <strong>{tenantSlug}</strong>.
+          Choose the LLM provider and model for tenant <strong>{tenantSlug}</strong>.
           {isAdmin ? " Admin can edit any tenant from the selector." : ""}
         </p>
       </header>
@@ -248,23 +240,13 @@ export function SettingsPanel() {
               type="button"
               className="secondary-button"
               disabled={refreshingModels || loading}
-              onClick={() => void refreshModels(llmProvider, llmBaseUrl, { openModal: true })}
+              onClick={() => void refreshModels(llmProvider, { openModal: true })}
             >
               {refreshingModels ? "Loading..." : "Browse models"}
             </button>
           </div>
           {modelSource ? <p className="result-muted">Model list source: {modelSource}</p> : null}
           {modelWarning ? <p className="error-banner">{modelWarning}</p> : null}
-
-          <label className="field">
-            <span>Base URL</span>
-            <input
-              type="text"
-              value={llmBaseUrl}
-              onChange={(event) => setLlmBaseUrl(event.target.value)}
-              placeholder="https://api.groq.com/openai/v1"
-            />
-          </label>
 
           <label className="field">
             <span>API key</span>

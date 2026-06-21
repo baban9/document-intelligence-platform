@@ -426,6 +426,33 @@ nav {
   text-align: center;
 }
 
+.pdf-viewer {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pdf-viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pdf-viewer-open-tab {
+  text-decoration: none;
+}
+
+.pdf-viewer-frame {
+  width: 100%;
+  min-height: 32rem;
+  height: 70vh;
+  max-height: 56rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
 .toggle-field {
   align-content: end;
 }
@@ -646,6 +673,27 @@ nav {
 .pdf-editor-text-details summary {
   cursor: pointer;
   color: var(--muted);
+}
+
+.pdf-editor-history-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pdf-editor-history-list li {
+  line-height: 1.4;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox-field input {
+  width: auto;
 }
 
 .success-banner {

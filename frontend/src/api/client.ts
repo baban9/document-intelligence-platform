@@ -489,6 +489,11 @@ export type PdfEditorSession = {
   download_url: string;
 };
 
+export type PdfEditorEditRecord = {
+  instruction: string;
+  changes_summary: string;
+};
+
 export type PdfEditorPageState = {
   session_id: string;
   page: number;
@@ -497,6 +502,8 @@ export type PdfEditorPageState = {
   preview_url: string;
   pages_edited: number[];
   download_url: string;
+  edit_history?: PdfEditorEditRecord[];
+  edit_count?: number;
   changes_summary?: string;
   edited_text?: string;
 };
@@ -532,6 +539,13 @@ export async function fetchPdfEditorPage(
     preview_url: String(payload.preview_url ?? ""),
     pages_edited: Array.isArray(payload.pages_edited) ? payload.pages_edited.map(Number) : [],
     download_url: String(payload.download_url ?? ""),
+    edit_history: Array.isArray(payload.edit_history)
+      ? payload.edit_history.map((item) => ({
+          instruction: String((item as Record<string, unknown>).instruction ?? ""),
+          changes_summary: String((item as Record<string, unknown>).changes_summary ?? ""),
+        }))
+      : [],
+    edit_count: Number(payload.edit_count ?? 0),
     changes_summary:
       typeof payload.changes_summary === "string" ? payload.changes_summary : undefined,
     edited_text: typeof payload.edited_text === "string" ? payload.edited_text : undefined,
@@ -561,6 +575,13 @@ export async function applyPdfEditorEdit(
     preview_url: String(payload.preview_url ?? ""),
     pages_edited: Array.isArray(payload.pages_edited) ? payload.pages_edited.map(Number) : [],
     download_url: String(payload.download_url ?? ""),
+    edit_history: Array.isArray(payload.edit_history)
+      ? payload.edit_history.map((item) => ({
+          instruction: String((item as Record<string, unknown>).instruction ?? ""),
+          changes_summary: String((item as Record<string, unknown>).changes_summary ?? ""),
+        }))
+      : [],
+    edit_count: Number(payload.edit_count ?? 0),
     changes_summary:
       typeof payload.changes_summary === "string" ? payload.changes_summary : undefined,
     edited_text: typeof payload.edited_text === "string" ? payload.edited_text : undefined,
@@ -633,10 +654,9 @@ export async function revealTenantApiKey(slug: string): Promise<string> {
 
 export async function fetchLlmModels(
   provider: string,
-  baseUrl: string,
   options?: { apiKey?: string; tenantSlug?: string },
 ): Promise<{ models: string[]; source?: string; warning?: string }> {
-  const params = new URLSearchParams({ provider, base_url: baseUrl });
+  const params = new URLSearchParams({ provider });
   if (options?.apiKey?.trim()) {
     params.set("api_key", options.apiKey.trim());
   }
@@ -744,6 +764,7 @@ export async function onboardUser(input: {
   first_name: string;
   last_name: string;
   email: string;
+  is_admin?: boolean;
 }): Promise<{ user: UserAccount; temporary_password: string; message: string }> {
   const response = await apiFetch(`${API_BASE}/v1/auth/users/onboard`, {
     method: "POST",

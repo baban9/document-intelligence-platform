@@ -1,0 +1,4 @@
+# Pinned CPU torch stack for Docker base (keep in sync with requirements/docker-ocr.lock.txt).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.12.1
+torchvision==0.27.1

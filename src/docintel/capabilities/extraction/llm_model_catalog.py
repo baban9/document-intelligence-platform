@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import requests
 
-from docintel.capabilities.extraction.llm_providers import SUPPORTED_PROVIDERS, _first_env
+from docintel.capabilities.extraction.llm_providers import SUPPORTED_PROVIDERS, _first_env, resolve_base_url
 
 _DEFAULT_MODELS: dict[str, list[str]] = {
     "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
@@ -42,13 +42,13 @@ def fetch_provider_models(
     if normalized == "groq":
         return _fetch_openai_compatible_models(
             api_key,
-            base_url or "https://api.groq.com/openai/v1",
+            resolve_base_url("groq", base_url) or "https://api.groq.com/openai/v1",
             provider="groq",
         )
     if normalized == "openai":
         return _fetch_openai_compatible_models(
             api_key,
-            base_url or "https://api.openai.com/v1",
+            resolve_base_url("openai", base_url) or "https://api.openai.com/v1",
             provider="openai",
         )
     if normalized == "gemini":

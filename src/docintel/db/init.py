@@ -59,7 +59,7 @@ def init_database() -> None:
                         tenant_id,
                         "groq",
                         "llama-3.3-70b-versatile",
-                        "https://api.groq.com/openai/v1",
+                        "",
                         default_entities,
                     ),
                 )

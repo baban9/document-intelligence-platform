@@ -82,6 +82,9 @@ auth = [
     "PyJWT>=2.9.0",
     "cryptography>=43.0.0",
 ]
+db = [
+    "psycopg2-binary>=2.9.9",
+]
 all = [
     "easyocr>=1.7.2",
     "opencv-python-headless>=4.10.0",
@@ -98,6 +101,7 @@ all = [
     "python-docx>=1.1.2",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
+    "psycopg2-binary>=2.9.9",
 ]
 
 [project.scripts]
@@ -113,7 +117,7 @@ Issues = "https://github.com/baban9/document-intelligence-platform/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-docintel = ["openapi/*.yaml"]
+docintel = ["openapi/*.yaml", "db/schema.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

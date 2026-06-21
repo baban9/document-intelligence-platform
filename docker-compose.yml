@@ -2,6 +2,23 @@
 # Optional: set DOCINTEL_DOCKER_TARGET=ocr for scanned PDF OCR (rebuilds api + worker).
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-docintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docintel}
+      POSTGRES_DB: ${POSTGRES_DB:-docintel}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - docintel_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docintel} -d ${POSTGRES_DB:-docintel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   redis:
     image: redis:7-alpine
     ports:
@@ -40,9 +57,13 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DOCINTEL_SPACY_MODEL: ${DOCINTEL_SPACY_MODEL:-en_core_web_lg}
       DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
+      DOCINTEL_DATABASE_URL: ${DOCINTEL_DATABASE_URL:-postgresql://docintel:docintel@postgres:5432/docintel}
+      DOCINTEL_MULTI_TENANT: ${DOCINTEL_MULTI_TENANT:-true}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -73,9 +94,13 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DOCINTEL_SPACY_MODEL: ${DOCINTEL_SPACY_MODEL:-en_core_web_lg}
       DOCINTEL_WARM_PII: ${DOCINTEL_WARM_PII:-true}
+      DOCINTEL_DATABASE_URL: ${DOCINTEL_DATABASE_URL:-postgresql://docintel:docintel@postgres:5432/docintel}
+      DOCINTEL_MULTI_TENANT: ${DOCINTEL_MULTI_TENANT:-true}
     volumes:
       - docintel_uploads:/app/uploads
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       api:
@@ -101,3 +126,4 @@ services:
 
 volumes:
   docintel_uploads:
+  docintel_postgres:

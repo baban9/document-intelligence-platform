@@ -21,7 +21,7 @@ COPY pyproject.toml requirements.txt README.md LICENSE run_worker.py ./
 COPY src ./src
 
 RUN pip install --upgrade pip \
-    && pip install -e ".[jobs,auth,documents,pii,llm]" \
+    && pip install -e ".[jobs,auth,documents,pii,llm,db]" \
     && python -m spacy download en_core_web_lg \
     && python -c "import spacy; spacy.load('en_core_web_lg')"
 

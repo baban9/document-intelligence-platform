@@ -1,0 +1,19 @@
+# Datadog OpenMetrics check for Document Intelligence.
+#
+# Install:
+#   1. Copy to /etc/datadog-agent/conf.d/openmetrics.d/conf.yaml
+#      (or merge into your existing openmetrics config)
+#   2. Replace YOUR_API_HOST with the DocIntel API hostname
+#   3. Restart the Datadog Agent
+#
+# Docs: https://docs.datadoghq.com/integrations/guide/prometheus-metrics/
+
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://YOUR_API_HOST:5000/metrics?format=prometheus
+    namespace: docintel
+    metrics:
+      - docintel_*
+    tags:
+      - service:docintel-api

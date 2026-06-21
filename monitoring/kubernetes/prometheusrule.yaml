@@ -1,0 +1,70 @@
+# Prometheus Operator alert rules for DocIntel.
+#
+# Apply:
+#   kubectl apply -f monitoring/kubernetes/prometheusrule.yaml
+#
+# Ensure your Prometheus instance selects PrometheusRule objects with
+# matching labels if you use ruleSelector.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: docintel-alerts
+  labels:
+    app: docintel-api
+spec:
+  groups:
+    - name: docintel
+      rules:
+        - alert: DocintelRedisDown
+          expr: docintel_redis_up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: DocIntel Redis is unreachable
+            description: docintel_redis_up has been 0 for more than 2 minutes.
+
+        - alert: DocintelHighHTTPErrorRate
+          expr: |
+            sum(rate(docintel_http_errors_total[5m]))
+            /
+            clamp_min(sum(rate(docintel_http_requests_total[5m])), 0.001)
+            > 0.10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: DocIntel HTTP error rate above 10%
+
+        - alert: DocintelHighHTTPLatency
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum(rate(docintel_http_request_duration_seconds_bucket[5m])) by (le)
+            ) > 30
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: DocIntel HTTP p95 latency above 30s
+
+        - alert: DocintelQueueBacklog
+          expr: docintel_rq_queue_depth > 50
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: DocIntel RQ queue backlog is high
+
+        - alert: DocintelJobFailureRate
+          expr: |
+            sum(rate(docintel_jobs_finished_total{status="failed"}[10m]))
+            /
+            clamp_min(sum(rate(docintel_jobs_finished_total[10m])), 0.001)
+            > 0.20
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: DocIntel background job failure rate above 20%

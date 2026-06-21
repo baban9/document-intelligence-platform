@@ -30,7 +30,32 @@ def test_metrics_prometheus_format():
     response = client.get("/metrics?format=prometheus")
 
   assert response.status_code == 200
-  assert b"docintel_http_requests_total" in response.data
+  body = response.data
+  assert b"docintel_http_requests_total" in body
+  assert b"docintel_http_errors_total" in body
+  assert b"docintel_http_requests_in_flight" in body
+  assert b"docintel_jobs_queued_total" in body
+  assert b"docintel_build_info" in body
+
+
+def test_prometheus_job_lifecycle_metrics():
+  from docintel.ops.prometheus import (
+    record_job_queued,
+    record_job_status_change,
+    render_prometheus,
+    reset_prometheus_state_for_tests,
+  )
+
+  reset_prometheus_state_for_tests()
+  record_job_queued("document_process")
+  record_job_status_change("job-1", "document_process", "queued", "running")
+  record_job_status_change("job-1", "document_process", "running", "completed")
+
+  body = render_prometheus()
+  assert b'docintel_jobs_queued_total{job_type="document_process"}' in body
+  assert b'docintel_jobs_finished_total{job_type="document_process",status="completed"}' in body
+  assert b"docintel_job_duration_seconds" in body
+  reset_prometheus_state_for_tests()
 
 
 def test_metrics_store_counts_errors():

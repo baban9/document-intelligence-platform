@@ -1,0 +1,62 @@
+# Example Prometheus alert rules for Document Intelligence.
+# Mount this file and reference it from prometheus.yml rule_files.
+
+groups:
+  - name: docintel
+    rules:
+      - alert: DocintelRedisDown
+        expr: docintel_redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: DocIntel Redis is unreachable
+          description: docintel_redis_up has been 0 for more than 2 minutes. Async jobs and job metadata will fail.
+
+      - alert: DocintelHighHTTPErrorRate
+        expr: |
+          sum(rate(docintel_http_errors_total[5m]))
+          /
+          clamp_min(sum(rate(docintel_http_requests_total[5m])), 0.001)
+          > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: DocIntel HTTP error rate above 10%
+          description: More than 10% of HTTP requests returned 4xx or 5xx over the last 5 minutes.
+
+      - alert: DocintelHighHTTPLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(docintel_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: DocIntel HTTP p95 latency above 30s
+          description: 95th percentile request latency exceeded 30 seconds.
+
+      - alert: DocintelQueueBacklog
+        expr: docintel_rq_queue_depth > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: DocIntel RQ queue backlog is high
+          description: More than 50 jobs waiting in the RQ queue for 10 minutes. Scale workers or investigate slow jobs.
+
+      - alert: DocintelJobFailureRate
+        expr: |
+          sum(rate(docintel_jobs_finished_total{status="failed"}[10m]))
+          /
+          clamp_min(sum(rate(docintel_jobs_finished_total[10m])), 0.001)
+          > 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: DocIntel background job failure rate above 20%
+          description: More than 20% of finished jobs failed over the last 10 minutes.

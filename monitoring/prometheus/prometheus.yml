@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alert-rules.yml
+
+scrape_configs:
+  - job_name: docintel-api
+    metrics_path: /metrics
+    params:
+      format: [prometheus]
+    static_configs:
+      - targets: ["api:5000"]
+        labels:
+          service: docintel-api

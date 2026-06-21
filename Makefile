@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui test eval build-dist publish-pypi clean docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-monitoring docker-up-monitoring-full docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -94,6 +94,12 @@ docker-up-ui:
 docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
+docker-up-monitoring:
+	$(COMPOSE) --profile monitoring up -d --build redis api worker prometheus grafana
+
+docker-up-monitoring-full:
+	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui --profile monitoring up -d --build
+
 docker-up-full:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) --profile ui up -d --build
 
@@ -108,3 +114,6 @@ docker-logs-api:
 
 docker-logs-ui:
 	$(COMPOSE) logs -f ui
+
+docker-logs-monitoring:
+	$(COMPOSE) logs -f prometheus grafana

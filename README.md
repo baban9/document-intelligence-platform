@@ -28,6 +28,8 @@ make docker-up-ui      # add Gradio when API is healthy
 | `make docker-up` | Redis, slim API, slim worker (documents, PII text, digital PDF) |
 | `make docker-up-ui` | Gradio UI (`--profile ui`) |
 | `make docker-up-ocr` | Rebuild with CPU-only OCR for scanned PDFs (no NVIDIA) |
+| `make docker-up-monitoring` | Core stack + Prometheus + Grafana (`--profile monitoring`) |
+| `make docker-up-monitoring-full` | OCR + UI + monitoring |
 | `make docker-up-full` | OCR stack + UI |
 
 Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `make docker-up-ocr`.
@@ -38,6 +40,9 @@ Slim image skips PyTorch and EasyOCR (~400MB+). Scanned PDF OCR is opt-in via `m
 | Interactive API docs | http://127.0.0.1:5000/docs |
 | Gradio UI | http://127.0.0.1:7860 |
 | Health | http://127.0.0.1:5000/health |
+| Prometheus | http://127.0.0.1:9090 (with `make docker-up-monitoring`) |
+| Grafana | http://127.0.0.1:3000 (default login `admin` / `admin`) |
+| Metrics scrape | http://127.0.0.1:5000/metrics?format=prometheus |
 
 Gradio includes a **Document process** tab (unified pipeline) and a **Document integrity** tab (gap and consistency checks). It needs the API plus a Redis worker (`worker` service in compose, or `make run-worker` locally).
 
@@ -152,6 +157,20 @@ export DOCINTEL_LLM_PROVIDER=gemini
 export GEMINI_API_KEY=your-key
 ```
 
+### Monitoring (Prometheus + Grafana)
+
+The API exports Prometheus metrics at `GET /metrics?format=prometheus`. For integration with your own Prometheus, Grafana Cloud, Kubernetes, or Datadog, see **[docs/MONITORING.md](docs/MONITORING.md)**.
+
+Quick local demo with bundled Prometheus and Grafana:
+
+```bash
+make docker-up-monitoring
+```
+
+Open Grafana at http://127.0.0.1:3000. The **Document Intelligence - App Performance** dashboard is provisioned automatically.
+
+Copy-paste configs for external stacks live under `monitoring/` (scrape examples, alert rules, Kubernetes ServiceMonitor, Grafana dashboard JSON).
+
 ---
 
 ## Documentation
@@ -160,6 +179,7 @@ export GEMINI_API_KEY=your-key
 |-----|----------|
 | [/docs](http://127.0.0.1:5000/docs) | Live OpenAPI / Swagger (authoritative API reference) |
 | [docs/PLATFORM.md](docs/PLATFORM.md) | Jobs, auth, storage, ops layout |
+| [docs/MONITORING.md](docs/MONITORING.md) | Prometheus, Grafana, Kubernetes, and third-party integration |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Checklist, latency, failure modes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones and history |
 | [docs/WEBHOOKS.md](docs/WEBHOOKS.md) | Async callbacks and S3 ingest |

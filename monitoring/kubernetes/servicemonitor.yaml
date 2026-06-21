@@ -1,0 +1,31 @@
+# Prometheus Operator ServiceMonitor for DocIntel API.
+#
+# Prerequisites:
+#   - API exposed as a Kubernetes Service with label app: docintel-api
+#   - Named port "http" on the Service (targetPort 5000)
+#   - Prometheus Operator installed (kube-prometheus-stack, etc.)
+#
+# Apply:
+#   kubectl apply -f monitoring/kubernetes/servicemonitor.yaml
+#
+# If your Prometheus instance uses a custom serviceMonitorSelector, add matching
+# labels under metadata.labels (for example release: prometheus).
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: docintel-api
+  labels:
+    app: docintel-api
+spec:
+  selector:
+    matchLabels:
+      app: docintel-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      params:
+        format:
+          - prometheus

@@ -42,6 +42,9 @@ Routes use the storage abstraction so workers and the API share the same artifac
 
 - Structured JSON logs via `ops/logging.py`
 - `GET /metrics` returns JSON counters; append `?format=prometheus` for scrape format
+- Full metric catalog and integration paths: [MONITORING.md](MONITORING.md)
+- Prometheus metrics: HTTP (`docintel_http_requests_total`, `docintel_http_errors_total`, `docintel_http_request_duration_seconds`, `docintel_http_requests_in_flight`), jobs (`docintel_jobs_queued_total`, `docintel_jobs_finished_total`, `docintel_jobs_running`, `docintel_job_duration_seconds`), infra (`docintel_rq_queue_depth`, `docintel_redis_up`), build (`docintel_build_info`)
+- `make docker-up-monitoring` starts Prometheus and Grafana with a prebuilt performance dashboard
 - `GET /health` for load balancer probes
 - OpenAPI spec and `/docs` for interactive exploration
 

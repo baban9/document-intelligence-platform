@@ -6,7 +6,7 @@ import json
 import os
 from functools import lru_cache
 
-from docintel.jobs.models import JobRecord
+from docintel.jobs.models import JobRecord, JobStatus
 
 JOB_KEY_PREFIX = "docintel:job:"
 DEFAULT_JOB_TTL_SECONDS = 60 * 60 * 24 * 7
@@ -47,9 +47,14 @@ def _job_key(job_id: str) -> str:
 
 
 def save_job(record: JobRecord, ttl_seconds: int | None = None) -> None:
+    existing = get_job(record.job_id)
     client = _redis_client()
     resolved_ttl = ttl_seconds if ttl_seconds is not None else job_ttl_seconds()
     client.set(_job_key(record.job_id), json.dumps(record.to_dict()), ex=resolved_ttl)
+    if existing is None and record.status.value == JobStatus.QUEUED.value:
+        from docintel.ops.prometheus import record_job_queued
+
+        record_job_queued(record.job_type.value)
 
 
 def get_job(job_id: str) -> JobRecord | None:
@@ -61,8 +66,6 @@ def get_job(job_id: str) -> JobRecord | None:
 
 
 def update_job(job_id: str, **changes) -> JobRecord:
-    from docintel.jobs.models import JobStatus
-
     record = get_job(job_id)
     if record is None:
         raise KeyError(f"Job not found: {job_id}")
@@ -82,6 +85,15 @@ def update_job(job_id: str, **changes) -> JobRecord:
         result=changes.get("result", record.result),
     )
     save_job(updated)
+    if record.status != updated.status:
+        from docintel.ops.prometheus import record_job_status_change
+
+        record_job_status_change(
+            job_id,
+            record.job_type.value,
+            record.status.value,
+            updated.status.value,
+        )
     return updated
 
 

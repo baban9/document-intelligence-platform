@@ -12,7 +12,7 @@ Checklist and operating notes for running the document intelligence platform in 
 | Redis | Provision Redis for RQ workers; match `REDIS_URL` in API and workers |
 | OCR stack | Default Docker is `slim` (no PyTorch). For scanned PDFs use `make docker-up-ocr` (CPU torch only) |
 | LLM structuring | Set `DOCINTEL_LLM_PROVIDER` (default `ollama`). Use `groq`, `gemini`, or `openai` with the matching API key env var |
-| Metrics | Scrape `GET /metrics?format=prometheus` or poll JSON metrics |
+| Metrics | Scrape `GET /metrics?format=prometheus`. See [MONITORING.md](MONITORING.md) for Prometheus, Grafana, Kubernetes, and vendor integration |
 | Auth | Enable `DOCINTEL_AUTH_MODE` before exposing to the public internet |
 | Upload limits | Set reverse proxy body size limits above largest expected PDF |
 | Health | Point load balancers at `GET /health` |
@@ -54,7 +54,7 @@ OCR render scale defaults to 2.0 (`OCR_RENDER_SCALE`). Lower it to reduce memory
 ## Observability
 
 - Structured logs include request id and route.
-- Prometheus metrics cover request counts and latency histograms.
+- Prometheus metrics cover HTTP traffic, background jobs, queue depth, and Redis health. Integration guide: [MONITORING.md](MONITORING.md).
 - Job records expose status transitions for client polling.
 
 ## Related docs

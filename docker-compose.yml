@@ -1,7 +1,8 @@
 # Fast default: Redis + slim API + slim worker (no PyTorch, no Gradio).
 # Optional profiles:
-#   ui  - Gradio on :7860
-#   ocr - CPU OCR image for scanned PDF routes (rebuilds api + worker)
+#   ui          - Gradio on :7860
+#   ocr         - CPU OCR image for scanned PDF routes (rebuilds api + worker)
+#   monitoring  - Prometheus on :9090 and Grafana on :3000
 
 services:
   redis:
@@ -28,6 +29,7 @@ services:
       DOCINTEL_LOG_LEVEL: ${DOCINTEL_LOG_LEVEL:-INFO}
       DOCINTEL_REDIS_URL: redis://redis:6379/0
       DOCINTEL_ASYNC_DEFAULT: ${DOCINTEL_ASYNC_DEFAULT:-true}
+      DOCINTEL_PROMETHEUS_ENABLED: ${DOCINTEL_PROMETHEUS_ENABLED:-true}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
     volumes:
       - docintel_uploads:/app/uploads
@@ -75,6 +77,36 @@ services:
       api:
         condition: service_healthy
     command: ["python", "run_ui.py"]
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    depends_on:
+      api:
+        condition: service_healthy
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.4.0
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
 
 volumes:
   docintel_uploads:

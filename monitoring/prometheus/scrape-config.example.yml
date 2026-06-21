@@ -1,0 +1,26 @@
+# Copy this block into your Prometheus scrape_configs.
+# Replace DOCINTEL_API_HOST with your API hostname or IP (include port if not 5000).
+
+- job_name: docintel-api
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  metrics_path: /metrics
+  params:
+    format: [prometheus]
+  static_configs:
+    - targets: ["DOCINTEL_API_HOST:5000"]
+      labels:
+        service: docintel-api
+        environment: production
+
+# Docker Compose on the same network as the API container:
+#
+#   - targets: ["api:5000"]
+#
+# Kubernetes service DNS (same namespace):
+#
+#   - targets: ["docintel-api:5000"]
+#
+# Host machine scraping a locally running API:
+#
+#   - targets: ["host.docker.internal:5000"]

@@ -18,6 +18,10 @@ def register_request_hooks(app: Flask) -> None:
   @app.before_request
   def _start_timer() -> None:
     g.request_start = time.perf_counter()
+    endpoint = request.endpoint or request.path
+    from docintel.ops.prometheus import record_http_in_flight
+
+    record_http_in_flight(endpoint, 1)
 
   @app.after_request
   def _record_request(response):
@@ -25,10 +29,10 @@ def register_request_hooks(app: Flask) -> None:
     duration_ms = (time.perf_counter() - start) * 1000 if start is not None else 0.0
     endpoint = request.endpoint or request.path
 
+    from docintel.ops.prometheus import record_http_in_flight, record_prometheus
+
+    record_http_in_flight(endpoint, -1)
     metrics_store.record(endpoint, response.status_code, duration_ms)
-
-    from docintel.ops.prometheus import record_prometheus
-
     record_prometheus(endpoint, response.status_code, duration_ms / 1000.0)
 
     logger.info(

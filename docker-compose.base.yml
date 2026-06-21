@@ -1,0 +1,17 @@
+# Build heavy dependency base images (spaCy, Presidio, PyTorch for OCR).
+# Run once or when pyproject.toml extras change: make docker-build-base
+
+services:
+  platform-base-slim:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+      target: slim-base
+    image: docintel-platform-base:3.11-slim
+
+  platform-base-ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+      target: ocr-base
+    image: docintel-platform-base:3.11-ocr

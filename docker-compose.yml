@@ -33,7 +33,11 @@ services:
   api:
     build:
       context: .
+      dockerfile: Dockerfile
       target: ${DOCINTEL_DOCKER_TARGET:-slim}
+      args:
+        DOCINTEL_BASE_IMAGE: ${DOCINTEL_BASE_IMAGE:-docintel-platform-base:3.11-slim}
+        DOCINTEL_BASE_IMAGE_OCR: ${DOCINTEL_BASE_IMAGE_OCR:-docintel-platform-base:3.11-ocr}
     image: docintel-platform:${DOCINTEL_DOCKER_TARGET:-slim}
     ports:
       - "${DOCINTEL_PORT:-5000}:5000"
@@ -86,7 +90,11 @@ services:
     image: docintel-platform:${DOCINTEL_DOCKER_TARGET:-slim}
     build:
       context: .
+      dockerfile: Dockerfile
       target: ${DOCINTEL_DOCKER_TARGET:-slim}
+      args:
+        DOCINTEL_BASE_IMAGE: ${DOCINTEL_BASE_IMAGE:-docintel-platform-base:3.11-slim}
+        DOCINTEL_BASE_IMAGE_OCR: ${DOCINTEL_BASE_IMAGE_OCR:-docintel-platform-base:3.11-ocr}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:

@@ -20,11 +20,13 @@ git clone https://github.com/baban9/document-intelligence-platform.git
 cd document-intelligence-platform
 cp .env.example .env   # optional: ports, LLM key, auth (see DOCINTEL_PORT if :5000 is busy)
 make env-init          # creates .env when missing
-make up                # Redis, API, worker, React web UI (slim, fast build)
+make up                # Redis, API, worker, React web UI (slim, fast app rebuild)
 make launch            # start stack, wait for health, run e2e smoke test
 ```
 
-Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
+First run (or after dependency changes) builds a heavy base image with spaCy and Presidio: `make docker-build-base`. Later `make up` only rebuilds the thin app layer.
+
+Stop everything with `make down`. For scanned PDF OCR (PyTorch in base image), use `make up-ocr`.
 
 **LLM in Docker:** Set `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` (never commit real keys). Default provider is Groq. No local model server is bundled.
 
@@ -37,6 +39,8 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 | `make e2e` | Run e2e smoke test against an already running stack |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
+| `make docker-build-base` | Build spaCy + Presidio base image (run once or when deps change) |
+| `make docker-build-base-ocr` | Build slim + OCR (PyTorch) base images |
 | `make docker-up` | Slim core only: Redis, API, worker (no UI) |
 | `make docker-up-ui` | Add web UI when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |

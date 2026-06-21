@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test test-postgres eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test test-postgres eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build-base docker-build-base-ocr docker-ensure-base docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -197,10 +197,22 @@ up-status:
 	fi
 	@echo ""
 
-docker-build:
+docker-build-base:
+	$(COMPOSE) -f docker-compose.base.yml build platform-base-slim
+
+docker-build-base-ocr:
+	$(COMPOSE) -f docker-compose.base.yml build platform-base-slim platform-base-ocr
+
+docker-ensure-base:
+	@docker image inspect docintel-platform-base:3.11-slim >/dev/null 2>&1 || $(MAKE) docker-build-base
+
+docker-ensure-base-ocr:
+	@docker image inspect docintel-platform-base:3.11-ocr >/dev/null 2>&1 || $(MAKE) docker-build-base-ocr
+
+docker-build: docker-ensure-base
 	DOCINTEL_DOCKER_TARGET=slim $(COMPOSE) build api
 
-docker-build-ocr:
+docker-build-ocr: docker-ensure-base-ocr
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) build api worker
 
 docker-up-core:
@@ -215,14 +227,15 @@ docker-up-ui:
 	$(COMPOSE) up -d --build ui
 
 docker-up-ocr:
+	DOCINTEL_DOCKER_TARGET=ocr $(MAKE) docker-ensure-base-ocr
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
-docker-up-local: docker-down check-ports
+docker-up-local: docker-down check-ports docker-ensure-base
 	$(COMPOSE) up -d --build postgres redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 	@$(MAKE) --no-print-directory up-logs-tail
 
-docker-up-full: docker-down
+docker-up-full: docker-down docker-ensure-base-ocr
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 	@$(MAKE) --no-print-directory up-logs-tail

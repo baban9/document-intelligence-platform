@@ -1,0 +1,56 @@
+# Heavy runtime dependencies for Document Intelligence Platform.
+# Build once and reuse: make docker-build-base
+# Images: docintel-platform-base:3.11-slim, docintel-platform-base:3.11-ocr
+
+FROM python:3.11-slim AS slim-base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DOCINTEL_SPACY_MODEL=en_core_web_lg
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY pyproject.toml requirements.txt README.md LICENSE ./
+COPY src ./src
+
+RUN pip install --upgrade pip \
+    && pip install ".[jobs,auth,documents,pii,llm,db]" \
+    && python -m spacy download en_core_web_lg \
+    && python -c "import spacy; spacy.load('en_core_web_lg')" \
+    && python -c "\
+from presidio_analyzer import AnalyzerEngine; \
+from presidio_analyzer.nlp_engine import NlpEngineProvider; \
+cfg = {'nlp_engine_name': 'spacy', 'models': [{'lang_code': 'en', 'model_name': 'en_core_web_lg'}]}; \
+engine = NlpEngineProvider(nlp_configuration=cfg).create_engine(); \
+AnalyzerEngine(nlp_engine=engine, supported_languages=['en']); \
+print('Presidio analyzer ready')" \
+    && rm -rf /build
+
+FROM slim-base AS ocr-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY pyproject.toml requirements.txt README.md LICENSE ./
+COPY src ./src
+
+RUN set -e; \
+    for attempt in 1 2 3 4 5; do \
+      pip install --default-timeout=300 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu \
+        && break; \
+      if [ "$$attempt" -eq 5 ]; then exit 1; fi; \
+      echo "torch download failed (attempt $$attempt/5), retrying..."; \
+      sleep 15; \
+    done \
+    && pip install ".[ocr]" \
+    && rm -rf /build

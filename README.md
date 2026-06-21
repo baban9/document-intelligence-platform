@@ -7,7 +7,7 @@
 
 Enterprise document intelligence API: PDF compliance (OCR, PII, redaction), LLM structuring, and multi-format text workflows (Word, Excel, CSV, plain text).
 
-**Version:** 1.7.0 | **PyPI:** [docintel-platform](https://pypi.org/project/docintel-platform/)
+**Version:** 1.8.0 | **PyPI:** [docintel-platform](https://pypi.org/project/docintel-platform/)
 
 ---
 

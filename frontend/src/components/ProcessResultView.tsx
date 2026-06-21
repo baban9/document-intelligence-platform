@@ -15,6 +15,7 @@ import {
   snapNavigablePage,
   type ResultTab,
 } from "../lib/processResults";
+import { downloadPiiCsv } from "../lib/exportPiiCsv";
 import { ProcessPagePager } from "./ProcessPagePager";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -156,6 +157,14 @@ export function ProcessResultView({ result }: ProcessResultViewProps) {
     pageFindings.length > 0 &&
     pageFindings.every((finding, index) => selectedKeys.has(findingKey(finding, index)));
 
+  function exportSelectedCsv() {
+    if (!selectedKeys.size) {
+      return;
+    }
+    const base = filename.replace(/\.[^.]+$/, "") || "document";
+    downloadPiiCsv(findings, selectedKeys, `${base}-pii-selected.csv`);
+  }
+
   return (
     <div className="process-result">
       <header className="result-header">
@@ -229,7 +238,12 @@ export function ProcessResultView({ result }: ProcessResultViewProps) {
               <h3>{processPageLabel(currentPage)}</h3>
               <span className="result-chip">{pageFindings.length} finding(s) on this page</span>
               {selectedKeys.size ? (
-                <span className="result-chip">{selectedKeys.size} selected overall</span>
+                <>
+                  <span className="result-chip">{selectedKeys.size} selected overall</span>
+                  <button type="button" className="secondary-button" onClick={exportSelectedCsv}>
+                    Export selected CSV
+                  </button>
+                </>
               ) : null}
             </div>
             {!pii ? (

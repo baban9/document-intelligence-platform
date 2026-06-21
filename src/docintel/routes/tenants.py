@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import os
-
-import requests
 from flask import Blueprint, g, jsonify, request
 
 from docintel.auth.limiter import limiter
+from docintel.capabilities.extraction.llm_model_catalog import (
+    fetch_provider_models,
+    resolve_models_api_key,
+)
 from docintel.capabilities.extraction.llm_providers import SUPPORTED_PROVIDERS
 from docintel.db.tenants import get_tenant_settings, list_tenants, update_tenant_settings
 from docintel.services.pdf.pii import list_supported_entities
 from docintel.tenants.context import can_access_tenant
 from docintel.tenants.middleware import multi_tenant_enabled
+from docintel.tenants.settings_user import settings_user_id_from_request
 
 tenants_bp = Blueprint("tenants", __name__, url_prefix="/v1/tenants")
 
@@ -72,7 +74,42 @@ def get_settings(slug: str):
     if settings is None:
         return jsonify({"error": "Tenant not found."}), 404
 
-    return jsonify({"status": "ok", **settings.to_dict()}), 200
+    return jsonify(
+        {
+            "status": "ok",
+            **settings.to_dict(settings_user_id=settings_user_id_from_request()),
+        }
+    ), 200
+
+
+@tenants_bp.get("/<slug>/settings/api-key")
+@limiter.limit("30 per hour")
+def reveal_settings_api_key(slug: str):
+    """Return the stored LLM API key only to the browser user who saved it."""
+    if not multi_tenant_enabled():
+        return jsonify({"error": "Multi-tenant mode is disabled."}), 503
+
+    viewer = _viewer_context()
+    if viewer is None:
+        return jsonify({"error": "Tenant context is required."}), 400
+    if not can_access_tenant(viewer, slug):
+        return jsonify({"error": "Access denied for this tenant."}), 403
+
+    settings_user_id = settings_user_id_from_request()
+    if not settings_user_id:
+        return jsonify({"error": "X-Settings-User-Id header is required."}), 400
+
+    settings = get_tenant_settings(slug)
+    if settings is None:
+        return jsonify({"error": "Tenant not found."}), 404
+    if not settings.llm_api_key_stored:
+        return jsonify({"error": "No API key is stored for this tenant."}), 404
+    if not settings.llm_api_key_owner or settings.llm_api_key_owner != settings_user_id:
+        return jsonify({"error": "Only the user who saved this API key can view it."}), 403
+    if not settings.llm_api_key:
+        return jsonify({"error": "Stored API key could not be decrypted on this server."}), 503
+
+    return jsonify({"status": "ok", "llm_api_key": settings.llm_api_key}), 200
 
 
 @tenants_bp.put("/<slug>/settings")
@@ -106,69 +143,72 @@ def put_settings(slug: str):
         return jsonify({"error": "Field 'pii_entities' must be a list."}), 400
     entities = [str(item).strip() for item in entities_raw if str(item).strip()]
 
-    updated = update_tenant_settings(
-        slug,
-        llm_provider=provider,
-        llm_model=model,
-        llm_base_url=base_url,
-        llm_api_key=api_key,
-        pii_entities=entities,
-        actor=viewer.slug,
-    )
+    try:
+        updated = update_tenant_settings(
+            slug,
+            llm_provider=provider,
+            llm_model=model,
+            llm_base_url=base_url,
+            llm_api_key=api_key,
+            pii_entities=entities,
+            actor=viewer.slug,
+            settings_user_id=settings_user_id_from_request(),
+        )
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     if updated is None:
         return jsonify({"error": "Tenant not found."}), 404
 
-    return jsonify({"status": "ok", **updated.to_dict()}), 200
+    return jsonify(
+        {
+            "status": "ok",
+            **updated.to_dict(settings_user_id=settings_user_id_from_request()),
+        }
+    ), 200
 
 
 @tenants_bp.get("/llm/models")
 @limiter.limit("60 per hour")
 def list_llm_models():
-    """List models for a provider (Ollama lists live models when reachable)."""
+    """List models for a provider from the live provider API when possible."""
     provider = request.args.get("provider", "ollama").strip().lower()
     base_url = request.args.get("base_url", "").strip()
+    explicit_key = request.args.get("api_key", "").strip()
+    tenant_slug = request.args.get("tenant_slug", "").strip()
 
-    if provider != "ollama":
-        defaults = {
-            "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
-            "gemini": ["gemini-2.0-flash", "gemini-1.5-pro"],
-            "openai": ["gpt-4o-mini", "gpt-4o"],
-        }
-        return jsonify(
-            {
-                "status": "ok",
-                "provider": provider,
-                "models": defaults.get(provider, []),
-                "source": "defaults",
-            }
-        ), 200
+    if provider not in SUPPORTED_PROVIDERS:
+        return jsonify({"error": f"Unsupported LLM provider '{provider}'."}), 400
 
-    ollama_root = base_url.rstrip("/").removesuffix("/v1") or os.getenv(
-        "DOCINTEL_LLM_BASE_URL", "http://127.0.0.1:11434/v1"
-    ).removesuffix("/v1")
-    try:
-        response = requests.get(f"{ollama_root}/api/tags", timeout=5)
-        response.raise_for_status()
-        payload = response.json()
-        models = [str(item.get("name", "")) for item in payload.get("models", []) if item.get("name")]
-        return jsonify(
-            {
-                "status": "ok",
-                "provider": provider,
-                "models": sorted(models),
-                "source": "ollama",
-            }
-        ), 200
-    except Exception as exc:
-        return jsonify(
-            {
-                "status": "ok",
-                "provider": provider,
-                "models": ["llama3.2", "llama3.1", "mistral"],
-                "source": "fallback",
-                "warning": str(exc),
-            }
-        ), 200
+    tenant_key = ""
+    viewer = _viewer_context()
+    resolved_slug = tenant_slug or (viewer.slug if viewer else "")
+    settings_user_id = settings_user_id_from_request()
+    if resolved_slug:
+        if viewer and not can_access_tenant(viewer, resolved_slug):
+            return jsonify({"error": "Access denied for this tenant."}), 403
+        settings = get_tenant_settings(resolved_slug)
+        if settings is not None:
+            owner_match = bool(
+                settings.llm_api_key_owner and settings_user_id == settings.llm_api_key_owner
+            )
+            if owner_match or not settings.llm_api_key_owner:
+                tenant_key = settings.llm_api_key or ""
+
+    api_key = resolve_models_api_key(provider, explicit_key, tenant_key)
+    models, source, warning = fetch_provider_models(provider, api_key=api_key, base_url=base_url)
+
+    payload: dict[str, object] = {
+        "status": "ok",
+        "provider": provider,
+        "models": models,
+        "source": source,
+    }
+    if warning:
+        payload["warning"] = warning
+    return jsonify(payload), 200
 
 
 @tenants_bp.get("/pii/entities")

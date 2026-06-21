@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tenant_settings (
     llm_model VARCHAR(128) NOT NULL DEFAULT '',
     llm_base_url VARCHAR(512) NOT NULL DEFAULT '',
     llm_api_key VARCHAR(512) NOT NULL DEFAULT '',
+    llm_api_key_owner VARCHAR(128) NOT NULL DEFAULT '',
     pii_entities JSONB NOT NULL DEFAULT '[]'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -35,3 +36,5 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_created ON audit_log(tenant_slug, created_at DESC);
+
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS llm_api_key_owner VARCHAR(128) NOT NULL DEFAULT '';

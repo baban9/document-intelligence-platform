@@ -4,14 +4,17 @@ import {
   fetchPiiEntityOptions,
   fetchPiiPresets,
   fetchTenantSettings,
+  revealTenantApiKey,
   updateTenantSettings,
 } from "../api/client";
 import { useTenant } from "../context/TenantContext";
 import { EntityChipPicker } from "./EntityChipPicker";
+import { ModelPickerModal } from "./ModelPickerModal";
 import { toEntityOptions } from "../lib/entityLabels";
 
 const PROVIDERS = ["ollama", "groq", "gemini", "openai"];
 const PRESET_ORDER = ["general", "healthcare", "financial", "legal"];
+const LIVE_MODEL_PROVIDERS = new Set(["ollama", "groq", "gemini", "openai"]);
 
 function titleCase(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -24,12 +27,19 @@ export function SettingsPanel() {
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
   const [apiKeySet, setApiKeySet] = useState(false);
+  const [apiKeyOwnerMatch, setApiKeyOwnerMatch] = useState(false);
+  const [apiKeyLocked, setApiKeyLocked] = useState(false);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [revealingKey, setRevealingKey] = useState(false);
   const [entities, setEntities] = useState<string[]>([]);
   const [availableEntities, setAvailableEntities] = useState<string[]>([]);
   const [presetMap, setPresetMap] = useState<Record<string, string[]>>({});
   const [activePreset, setActivePreset] = useState("");
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelSource, setModelSource] = useState<string | null>(null);
+  const [modelWarning, setModelWarning] = useState<string | null>(null);
+  const [modelModalOpen, setModelModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,19 +47,38 @@ export function SettingsPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [piiWarning, setPiiWarning] = useState<string | null>(null);
 
-  async function refreshModels(provider = llmProvider, baseUrl = llmBaseUrl) {
+  async function refreshModels(
+    provider = llmProvider,
+    baseUrl = llmBaseUrl,
+    options?: { openModal?: boolean },
+  ) {
+    if (options?.openModal) {
+      setModelModalOpen(true);
+    }
     setRefreshingModels(true);
     setError(null);
     try {
-      const models = await fetchLlmModels(provider, baseUrl);
+      const models = await fetchLlmModels(provider, baseUrl, {
+        apiKey: llmApiKey,
+        tenantSlug,
+      });
       setModelOptions(Array.isArray(models.models) ? models.models.map(String) : []);
       setModelSource(models.source ?? null);
+      setModelWarning(models.warning ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not refresh model list.");
       setModelOptions([]);
       setModelSource(null);
+      setModelWarning(null);
     } finally {
       setRefreshingModels(false);
+    }
+  }
+
+  function handleProviderChange(nextProvider: string) {
+    setLlmProvider(nextProvider);
+    if (LIVE_MODEL_PROVIDERS.has(nextProvider)) {
+      void refreshModels(nextProvider, llmBaseUrl, { openModal: true });
     }
   }
 
@@ -75,6 +104,10 @@ export function SettingsPanel() {
         setLlmModel(String(settings.llm_model ?? ""));
         setLlmBaseUrl(baseUrl);
         setApiKeySet(Boolean(settings.llm_api_key_set));
+        setApiKeyOwnerMatch(Boolean(settings.llm_api_key_owner_match));
+        setApiKeyLocked(Boolean(settings.llm_api_key_locked));
+        setRevealedKey(null);
+        setShowKey(false);
         setEntities(Array.isArray(settings.pii_entities) ? settings.pii_entities.map(String) : []);
         setAvailableEntities(
           Array.isArray(entityPayload.entities) ? entityPayload.entities.map(String) : [],
@@ -109,6 +142,20 @@ export function SettingsPanel() {
     }
   }
 
+  async function onRevealApiKey() {
+    setRevealingKey(true);
+    setError(null);
+    try {
+      const key = await revealTenantApiKey(tenantSlug);
+      setRevealedKey(key);
+      setShowKey(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reveal API key.");
+    } finally {
+      setRevealingKey(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setPiiWarning(null);
@@ -135,7 +182,11 @@ export function SettingsPanel() {
         pii_entities: entities,
       });
       setApiKeySet(Boolean(updated.llm_api_key_set));
+      setApiKeyOwnerMatch(Boolean(updated.llm_api_key_owner_match));
+      setApiKeyLocked(Boolean(updated.llm_api_key_locked));
       setLlmApiKey("");
+      setRevealedKey(null);
+      setShowKey(false);
       setMessage("Settings saved for this tenant.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save settings.");
@@ -163,7 +214,10 @@ export function SettingsPanel() {
           <legend>LLM</legend>
           <label className="field">
             <span>Provider</span>
-            <select value={llmProvider} onChange={(event) => setLlmProvider(event.target.value)}>
+            <select
+              value={llmProvider}
+              onChange={(event) => handleProviderChange(event.target.value)}
+            >
               {PROVIDERS.map((provider) => (
                 <option key={provider} value={provider}>
                   {provider}
@@ -175,25 +229,30 @@ export function SettingsPanel() {
           <div className="field-row settings-model-row">
             <label className="field">
               <span>Model</span>
-              <select value={llmModel} onChange={(event) => setLlmModel(event.target.value)}>
-                <option value="">Select a model</option>
+              <input
+                type="text"
+                value={llmModel}
+                onChange={(event) => setLlmModel(event.target.value)}
+                placeholder="Select or type a model id"
+                list="settings-model-options"
+              />
+              <datalist id="settings-model-options">
                 {modelOptions.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
+                  <option key={model} value={model} />
                 ))}
-              </select>
+              </datalist>
             </label>
             <button
               type="button"
               className="secondary-button"
               disabled={refreshingModels || loading}
-              onClick={() => void refreshModels()}
+              onClick={() => void refreshModels(llmProvider, llmBaseUrl, { openModal: true })}
             >
-              {refreshingModels ? "Refreshing..." : "Refresh models"}
+              {refreshingModels ? "Loading..." : "Browse models"}
             </button>
           </div>
           {modelSource ? <p className="result-muted">Model list source: {modelSource}</p> : null}
+          {modelWarning ? <p className="error-banner">{modelWarning}</p> : null}
 
           <label className="field">
             <span>Base URL</span>
@@ -207,18 +266,60 @@ export function SettingsPanel() {
 
           <label className="field">
             <span>API key</span>
-            {apiKeySet ? (
-              <p className="settings-masked-key">Current key: configured (stored securely)</p>
-            ) : (
-              <p className="result-muted">No API key stored for this tenant.</p>
-            )}
-            <input
-              type="password"
-              value={llmApiKey}
-              onChange={(event) => setLlmApiKey(event.target.value)}
-              placeholder="Enter a new key to replace the stored value"
-              autoComplete="off"
-            />
+            {apiKeySet && apiKeyLocked ? (
+              <p className="result-muted">
+                An API key is configured by another user on this device. You cannot view or replace it.
+              </p>
+            ) : null}
+            {apiKeySet && apiKeyOwnerMatch ? (
+              <p className="settings-masked-key">
+                Your API key is stored with user-only encryption. Only you can view it on this browser.
+              </p>
+            ) : null}
+            {apiKeySet && !apiKeyOwnerMatch && !apiKeyLocked ? (
+              <p className="result-muted">An API key is configured for this tenant.</p>
+            ) : null}
+            {!apiKeySet ? <p className="result-muted">No API key stored for this tenant.</p> : null}
+
+            {apiKeySet && apiKeyOwnerMatch ? (
+              <div className="settings-key-reveal-row">
+                {showKey && revealedKey ? (
+                  <input type="text" readOnly value={revealedKey} className="settings-revealed-key" />
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={revealingKey || loading}
+                    onClick={() => void onRevealApiKey()}
+                  >
+                    {revealingKey ? "Loading..." : "Show my API key"}
+                  </button>
+                )}
+                {showKey && revealedKey ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setShowKey(false)}
+                  >
+                    Hide
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!apiKeyLocked ? (
+              <input
+                type="password"
+                value={llmApiKey}
+                onChange={(event) => setLlmApiKey(event.target.value)}
+                placeholder={
+                  apiKeySet && apiKeyOwnerMatch
+                    ? "Enter a new key to replace your stored value"
+                    : "Enter an API key for this provider"
+                }
+                autoComplete="off"
+              />
+            ) : null}
           </label>
         </fieldset>
 
@@ -250,6 +351,18 @@ export function SettingsPanel() {
           {saving ? "Saving..." : "Save settings"}
         </button>
       </form>
+
+      <ModelPickerModal
+        open={modelModalOpen}
+        provider={llmProvider}
+        models={modelOptions}
+        source={modelSource}
+        warning={modelWarning}
+        loading={refreshingModels}
+        selectedModel={llmModel}
+        onSelect={setLlmModel}
+        onClose={() => setModelModalOpen(false)}
+      />
 
       {message ? <p className="success-banner">{message}</p> : null}
       {piiWarning ? <p className="error-banner">{piiWarning}</p> : null}

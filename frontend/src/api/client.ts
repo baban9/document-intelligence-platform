@@ -1,4 +1,5 @@
 import { loadTenantSlug, TENANT_HEADER } from "../lib/tenantStorage";
+import { loadSettingsUserId, SETTINGS_USER_HEADER } from "../lib/settingsUserId";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
@@ -9,6 +10,7 @@ export type { JsonRecord };
 async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers ?? {});
   headers.set(TENANT_HEADER, loadTenantSlug());
+  headers.set(SETTINGS_USER_HEADER, loadSettingsUserId());
   return fetch(input, { ...init, headers });
 }
 
@@ -574,16 +576,30 @@ export async function updateTenantSettings(slug: string, body: JsonRecord): Prom
   return parseJson(response);
 }
 
+export async function revealTenantApiKey(slug: string): Promise<string> {
+  const response = await apiFetch(`${API_BASE}/v1/tenants/${slug}/settings/api-key`);
+  const payload = await parseJson(response);
+  return String(payload.llm_api_key ?? "");
+}
+
 export async function fetchLlmModels(
   provider: string,
   baseUrl: string,
-): Promise<{ models: string[]; source?: string }> {
+  options?: { apiKey?: string; tenantSlug?: string },
+): Promise<{ models: string[]; source?: string; warning?: string }> {
   const params = new URLSearchParams({ provider, base_url: baseUrl });
+  if (options?.apiKey?.trim()) {
+    params.set("api_key", options.apiKey.trim());
+  }
+  if (options?.tenantSlug?.trim()) {
+    params.set("tenant_slug", options.tenantSlug.trim());
+  }
   const response = await apiFetch(`${API_BASE}/v1/tenants/llm/models?${params.toString()}`);
   const payload = await parseJson(response);
   return {
     models: Array.isArray(payload.models) ? payload.models.map(String) : [],
     source: typeof payload.source === "string" ? payload.source : undefined,
+    warning: typeof payload.warning === "string" ? payload.warning : undefined,
   };
 }
 

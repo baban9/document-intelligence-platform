@@ -955,22 +955,71 @@ paths:
         "404":
           description: Tenant not found
 
+  /v1/tenants/{slug}/settings/api-key:
+    get:
+      tags: [tenants]
+      summary: Reveal stored LLM API key (owner only)
+      description: |
+        Returns the decrypted API key only when X-Settings-User-Id matches the browser
+        user who saved the key. Admin and other users receive 403.
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Tenant-Slug
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Settings-User-Id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Decrypted API key for the owner
+        "403":
+          description: Not the key owner
+        "404":
+          description: Tenant or key not found
+
   /v1/tenants/llm/models:
     get:
       tags: [tenants]
       summary: List LLM models for a provider
+      description: |
+        Fetches live model ids from the provider API when an API key is available
+        (query param, tenant settings, or server env). Falls back to defaults on error.
       parameters:
         - in: query
           name: provider
           schema:
             type: string
+            enum: [ollama, groq, gemini, openai]
         - in: query
           name: base_url
           schema:
             type: string
+        - in: query
+          name: api_key
+          schema:
+            type: string
+          description: Optional key from the settings form (not stored until save).
+        - in: query
+          name: tenant_slug
+          schema:
+            type: string
+          description: Tenant whose stored key should be used when api_key is empty.
       responses:
         "200":
-          description: Model names
+          description: Model names with source label (groq, gemini, ollama, fallback, etc.)
+        "400":
+          description: Unsupported provider
+        "403":
+          description: Access denied for tenant_slug
 
   /v1/tenants/pii/entities:
     get:

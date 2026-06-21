@@ -42,10 +42,12 @@ def test_admin_can_update_tenant_settings(seeded_postgres_app):
 
 def test_settings_api_key_encrypted_at_rest(seeded_postgres_app, monkeypatch):
     monkeypatch.setenv("DOCINTEL_SETTINGS_ENCRYPTION_KEY", "integration-test-key")
+    owner_id = "settings-owner-test-user"
+    headers = {"X-Tenant-Slug": "admin", "X-Settings-User-Id": owner_id}
     with seeded_postgres_app.test_client() as client:
         response = client.put(
             "/v1/tenants/acme-corp/settings",
-            headers={"X-Tenant-Slug": "admin"},
+            headers=headers,
             json={
                 "llm_provider": "openai",
                 "llm_model": "gpt-4o-mini",
@@ -62,23 +64,33 @@ def test_settings_api_key_encrypted_at_rest(seeded_postgres_app, monkeypatch):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT s.llm_api_key
+                    SELECT s.llm_api_key, s.llm_api_key_owner
                     FROM tenant_settings s
                     JOIN tenants t ON t.id = s.tenant_id
                     WHERE t.slug = %s
                     """,
                     ("acme-corp",),
                 )
-                stored = cur.fetchone()[0]
-        assert stored.startswith("enc:v1:")
+                stored, stored_owner = cur.fetchone()
+        assert stored.startswith("enc:u1:")
+        assert stored_owner == owner_id
         assert "sk-test-secret-value" not in stored
 
-        read_back = client.get(
-            "/v1/tenants/acme-corp/settings",
-            headers={"X-Tenant-Slug": "admin"},
-        )
+        read_back = client.get("/v1/tenants/acme-corp/settings", headers=headers)
         payload = read_back.get_json()
         assert payload["llm_api_key_set"] is True
+        assert payload["llm_api_key_owner_match"] is True
+        assert "llm_api_key" not in payload
+
+        reveal = client.get("/v1/tenants/acme-corp/settings/api-key", headers=headers)
+        assert reveal.status_code == 200
+        assert reveal.get_json()["llm_api_key"] == "sk-test-secret-value"
+
+        blocked = client.get(
+            "/v1/tenants/acme-corp/settings/api-key",
+            headers={"X-Tenant-Slug": "admin", "X-Settings-User-Id": "someone-else"},
+        )
+        assert blocked.status_code == 403
 
 
 def test_settings_update_writes_audit_log(seeded_postgres_app):

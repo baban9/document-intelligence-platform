@@ -39,7 +39,6 @@ _SENSITIVE_ENV_NAMES = frozenset(
         "OPENAI_API_KEY",
         "GEMINI_API_KEY",
         "GOOGLE_API_KEY",
-        "OLLAMA_API_KEY",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_ACCESS_KEY_ID",
     }

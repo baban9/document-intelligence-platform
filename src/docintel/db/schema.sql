@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 CREATE TABLE IF NOT EXISTS tenant_settings (
     tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
-    llm_provider VARCHAR(32) NOT NULL DEFAULT 'ollama',
+    llm_provider VARCHAR(32) NOT NULL DEFAULT 'groq',
     llm_model VARCHAR(128) NOT NULL DEFAULT '',
     llm_base_url VARCHAR(512) NOT NULL DEFAULT '',
     llm_api_key VARCHAR(512) NOT NULL DEFAULT '',

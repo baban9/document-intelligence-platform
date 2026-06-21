@@ -44,16 +44,16 @@ def test_admin_can_update_tenant_settings(seeded_postgres_app):
             "/v1/tenants/acme-corp/settings",
             headers={"X-Tenant-Slug": "admin"},
             json={
-                "llm_provider": "ollama",
-                "llm_model": "llama3.2",
-                "llm_base_url": "http://ollama:11434/v1",
+                "llm_provider": "groq",
+                "llm_model": "llama-3.3-70b-versatile",
+                "llm_base_url": "https://api.groq.com/openai/v1",
                 "pii_entities": ["EMAIL_ADDRESS", "PHONE_NUMBER"],
             },
         )
 
     payload = response.get_json()
     assert response.status_code == 200
-    assert payload["llm_model"] == "llama3.2"
+    assert payload["llm_model"] == "llama-3.3-70b-versatile"
     assert "EMAIL_ADDRESS" in payload["pii_entities"]
 
 
@@ -180,9 +180,9 @@ def test_settings_update_writes_audit_log(seeded_postgres_app):
             "/v1/tenants/finance-hub/settings",
             headers={"X-Tenant-Slug": "admin"},
             json={
-                "llm_provider": "ollama",
-                "llm_model": "llama3.2",
-                "llm_base_url": "http://ollama:11434/v1",
+                "llm_provider": "groq",
+                "llm_model": "llama-3.3-70b-versatile",
+                "llm_base_url": "https://api.groq.com/openai/v1",
                 "pii_entities": ["CREDIT_CARD"],
             },
         )

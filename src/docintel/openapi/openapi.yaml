@@ -936,7 +936,7 @@ paths:
               properties:
                 llm_provider:
                   type: string
-                  enum: [ollama, groq, gemini, openai]
+                  enum: [groq, gemini, openai]
                 llm_model:
                   type: string
                 llm_base_url:
@@ -998,7 +998,7 @@ paths:
           name: provider
           schema:
             type: string
-            enum: [ollama, groq, gemini, openai]
+            enum: [groq, gemini, openai]
         - in: query
           name: base_url
           schema:
@@ -1015,7 +1015,7 @@ paths:
           description: Tenant whose stored key should be used when api_key is empty.
       responses:
         "200":
-          description: Model names with source label (groq, gemini, ollama, fallback, etc.)
+          description: Model names with source label (groq, gemini, openai, fallback, etc.)
         "400":
           description: Unsupported provider
         "403":

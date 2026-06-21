@@ -6,10 +6,9 @@ import os
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-SUPPORTED_PROVIDERS = ("ollama", "groq", "gemini", "openai")
+SUPPORTED_PROVIDERS = ("groq", "gemini", "openai")
 
 _PROVIDER_ALIASES = {
-    "local": "ollama",
     "google": "gemini",
 }
 
@@ -46,7 +45,7 @@ def resolve_llm_config() -> LLMConfig:
     tenant = get_tenant_context()
     if tenant and tenant.settings:
         settings = tenant.settings
-        provider = _normalize_provider(settings.llm_provider or "ollama")
+        provider = _normalize_provider(settings.llm_provider or "groq")
         return _config_for_provider(
             provider,
             api_key=settings.llm_api_key,
@@ -54,7 +53,7 @@ def resolve_llm_config() -> LLMConfig:
             base_url=settings.llm_base_url,
         )
 
-    provider = _normalize_provider(os.getenv("DOCINTEL_LLM_PROVIDER", "ollama"))
+    provider = _normalize_provider(os.getenv("DOCINTEL_LLM_PROVIDER", "groq"))
     return _config_for_provider(provider)
 
 
@@ -65,17 +64,6 @@ def _config_for_provider(
     model: str = "",
     base_url: str = "",
 ) -> LLMConfig:
-    if provider == "ollama":
-        resolved_key = api_key or _first_env(("DOCINTEL_LLM_API_KEY", "OLLAMA_API_KEY")) or "ollama"
-        resolved_model = model or os.getenv("DOCINTEL_LLM_MODEL", "llama3.2").strip() or "llama3.2"
-        resolved_base = base_url or os.getenv("DOCINTEL_LLM_BASE_URL", "http://127.0.0.1:11434/v1").strip()
-        return LLMConfig(
-            provider=provider,
-            api_key=resolved_key,
-            model=resolved_model,
-            base_url=resolved_base or None,
-        )
-
     if provider == "groq":
         resolved_key = api_key or _first_env(("DOCINTEL_LLM_API_KEY", "GROQ_API_KEY"))
         if not resolved_key:
@@ -114,7 +102,7 @@ def _config_for_provider(
 
 def resolve_llm_config_legacy_env_only() -> LLMConfig:
     """Backward-compatible env-only resolver (used in tests)."""
-    provider = _normalize_provider(os.getenv("DOCINTEL_LLM_PROVIDER", "ollama"))
+    provider = _normalize_provider(os.getenv("DOCINTEL_LLM_PROVIDER", "groq"))
     return _config_for_provider(provider)
 
 
@@ -136,7 +124,7 @@ def chat_json_completion(
     user_prompt: str,
     temperature: float = 0.1,
 ) -> str:
-    """Request a JSON object response, with a fallback for local models."""
+    """Request a JSON object response, with a fallback for providers without response_format."""
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},

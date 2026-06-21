@@ -5,18 +5,15 @@ import pytest
 from docintel.capabilities.extraction.llm_providers import resolve_llm_config
 
 
-def test_default_provider_is_ollama(monkeypatch):
+def test_default_provider_is_groq_requires_api_key(monkeypatch):
     monkeypatch.delenv("DOCINTEL_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("DOCINTEL_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("DOCINTEL_LLM_MODEL", raising=False)
     monkeypatch.delenv("DOCINTEL_LLM_BASE_URL", raising=False)
 
-    config = resolve_llm_config()
-
-    assert config.provider == "ollama"
-    assert config.api_key == "ollama"
-    assert config.model == "llama3.2"
-    assert config.base_url == "http://127.0.0.1:11434/v1"
+    with pytest.raises(RuntimeError, match="Groq requires"):
+        resolve_llm_config()
 
 
 def test_groq_provider_uses_groq_api_key(monkeypatch):
@@ -84,14 +81,15 @@ def test_docintel_llm_api_key_overrides_provider_key(monkeypatch):
 
 
 def test_custom_model_and_base_url_override(monkeypatch):
-    monkeypatch.setenv("DOCINTEL_LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("DOCINTEL_LLM_MODEL", "mistral")
-    monkeypatch.setenv("DOCINTEL_LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("DOCINTEL_LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk-test")
+    monkeypatch.setenv("DOCINTEL_LLM_MODEL", "llama-3.1-8b-instant")
+    monkeypatch.setenv("DOCINTEL_LLM_BASE_URL", "https://api.groq.com/openai/v1")
 
     config = resolve_llm_config()
 
-    assert config.model == "mistral"
-    assert config.base_url == "http://localhost:11434/v1"
+    assert config.model == "llama-3.1-8b-instant"
+    assert config.base_url == "https://api.groq.com/openai/v1"
 
 
 def test_chat_json_completion_falls_back_without_response_format(monkeypatch):
@@ -126,7 +124,7 @@ def test_chat_json_completion_falls_back_without_response_format(monkeypatch):
     client = FakeClient()
     content = chat_json_completion(
         client,
-        model="llama3.2",
+        model="llama-3.3-70b-versatile",
         system_prompt="system",
         user_prompt="user",
     )

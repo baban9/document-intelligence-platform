@@ -26,7 +26,7 @@ make launch            # start stack, wait for health, run e2e smoke test
 
 Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), use `make up-ocr`.
 
-**LLM in Docker:** Compose runs a pre-baked Ollama image (`docintel-ollama:llama3.2`) with the default model included. Build it once with `make docker-build-ollama`, then reuse on every `make up`. Change the model with `OLLAMA_PULL_MODEL` in `.env` and rebuild.
+**LLM in Docker:** Set `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` (never commit real keys). Default provider is Groq. No local model server is bundled.
 
 **Port 5000 already in use?** Edit `.env` and set `DOCINTEL_PORT=5001`, then run `make up` again. Shell-only `DOCINTEL_PORT=5001` without `export` or a `.env` file does not change Docker ports.
 
@@ -37,7 +37,6 @@ Stop everything with `make down`. For scanned PDF OCR (large PyTorch download), 
 | `make e2e` | Run e2e smoke test against an already running stack |
 | `make up-ocr` | Same as `make up` but OCR image for scanned PDFs (slower first build) |
 | `make down` | Stop and remove all compose services |
-| `make docker-build-ollama` | Build Ollama image with default LLM pre-pulled |
 | `make docker-up` | Slim core only: Redis, API, worker (no UI) |
 | `make docker-up-ui` | Add web UI when API is already running |
 | `make docker-up-ocr` | Rebuild core with CPU-only OCR for scanned PDFs |
@@ -141,11 +140,10 @@ Copy `.env.example` to `.env` for LLM provider settings, auth keys, Redis, and S
 
 ### LLM providers (PDF structure)
 
-Set `DOCINTEL_LLM_PROVIDER` to switch backends. Default is **Ollama** (local, no API key required).
+Set `DOCINTEL_LLM_PROVIDER` to switch backends. Default is **Groq**. All providers require an API key in `.env` or tenant Settings.
 
 | Provider | Env | Default model | API key |
 |----------|-----|---------------|---------|
-| `ollama` | `DOCINTEL_LLM_PROVIDER=ollama` | `llama3.2` | optional (`ollama`) |
 | `groq` | `DOCINTEL_LLM_PROVIDER=groq` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
 | `gemini` | `DOCINTEL_LLM_PROVIDER=gemini` | `gemini-2.0-flash` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
 | `openai` | `DOCINTEL_LLM_PROVIDER=openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
@@ -153,17 +151,17 @@ Set `DOCINTEL_LLM_PROVIDER` to switch backends. Default is **Ollama** (local, no
 `DOCINTEL_LLM_API_KEY` overrides provider-specific keys. `DOCINTEL_LLM_MODEL` and `DOCINTEL_LLM_BASE_URL` override defaults for any provider.
 
 ```bash
-# Local Ollama (default)
-ollama pull llama3.2
-export DOCINTEL_LLM_PROVIDER=ollama
-
-# Groq
+# Groq (default)
 export DOCINTEL_LLM_PROVIDER=groq
 export GROQ_API_KEY=your-key
 
 # Gemini
 export DOCINTEL_LLM_PROVIDER=gemini
 export GEMINI_API_KEY=your-key
+
+# OpenAI
+export DOCINTEL_LLM_PROVIDER=openai
+export OPENAI_API_KEY=your-key
 ```
 
 ### Monitoring (Prometheus + Grafana)

@@ -129,7 +129,7 @@ def put_settings(slug: str):
     if not isinstance(payload, dict):
         return jsonify({"error": "Request body must be JSON."}), 400
 
-    provider = str(payload.get("llm_provider", "ollama")).strip().lower()
+    provider = str(payload.get("llm_provider", "groq")).strip().lower()
     if provider not in SUPPORTED_PROVIDERS:
         return jsonify({"error": f"Unsupported LLM provider '{provider}'."}), 400
 
@@ -174,7 +174,7 @@ def put_settings(slug: str):
 @limiter.limit("60 per hour")
 def list_llm_models():
     """List models for a provider from the live provider API when possible."""
-    provider = request.args.get("provider", "ollama").strip().lower()
+    provider = request.args.get("provider", "groq").strip().lower()
     base_url = request.args.get("base_url", "").strip()
     explicit_key = request.args.get("api_key", "").strip()
     tenant_slug = request.args.get("tenant_slug", "").strip()

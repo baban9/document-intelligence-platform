@@ -1,4 +1,4 @@
-.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test test-postgres eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-build-ollama docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
+.PHONY: setup setup-hooks setup-ocr setup-pii setup-llm setup-jobs setup-auth setup-ui install fix-editable-pth run run-redis run-worker run-ui ui-dev ui-build test test-postgres eval build-dist publish-pypi clean env-init check-ports check-secrets up up-ocr down up-status up-logs-tail launch wait-healthy e2e generate-corpus scale-test-up scale-test scale-test-down docker-build docker-build-ocr docker-up docker-up-core docker-up-ui docker-up-ocr docker-up-local docker-up-full docker-down docker-logs docker-logs-api docker-logs-ui docker-logs-worker clean-legacy-monitoring
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -203,9 +203,6 @@ docker-build:
 docker-build-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) build api worker
 
-docker-build-ollama:
-	$(COMPOSE) build ollama
-
 docker-up-core:
 	$(COMPOSE) up -d redis
 	$(COMPOSE) up -d --build api
@@ -221,7 +218,7 @@ docker-up-ocr:
 	DOCINTEL_DOCKER_TARGET=ocr $(COMPOSE) up -d --build redis api worker
 
 docker-up-local: docker-down check-ports
-	$(COMPOSE) up -d --build postgres redis ollama api worker ui
+	$(COMPOSE) up -d --build postgres redis api worker ui
 	@$(MAKE) --no-print-directory up-status
 	@$(MAKE) --no-print-directory up-logs-tail
 

@@ -103,7 +103,7 @@ def _row_to_settings(row) -> TenantSettingsRecord:
         tenant_slug=str(row[1]),
         tenant_name=str(row[2]),
         is_admin=bool(row[3]),
-        llm_provider=str(row[4] or "ollama"),
+        llm_provider=str(row[4] or "groq"),
         llm_model=str(row[5] or ""),
         llm_base_url=str(row[6] or ""),
         llm_api_key=_decrypt_settings_api_key(stored_key, owner),

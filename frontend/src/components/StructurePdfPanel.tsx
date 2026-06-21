@@ -67,7 +67,7 @@ export function StructurePdfPanel() {
         <h1>Structure PDF</h1>
         <p>
           Convert scanned PDFs into a curated digital PDF. Set DOCINTEL_LLM_PROVIDER on the API
-          server (default: ollama).
+          server (default: groq).
         </p>
       </header>
 

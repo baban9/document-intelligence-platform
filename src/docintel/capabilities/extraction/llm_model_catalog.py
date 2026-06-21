@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import requests
 
 from docintel.capabilities.extraction.llm_providers import SUPPORTED_PROVIDERS, _first_env
@@ -12,14 +10,12 @@ _DEFAULT_MODELS: dict[str, list[str]] = {
     "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
     "gemini": ["gemini-2.0-flash", "gemini-1.5-pro"],
     "openai": ["gpt-4o-mini", "gpt-4o"],
-    "ollama": ["llama3.2", "llama3.1", "mistral"],
 }
 
 _ENV_KEYS: dict[str, tuple[str, ...]] = {
     "groq": ("DOCINTEL_LLM_API_KEY", "GROQ_API_KEY"),
     "gemini": ("DOCINTEL_LLM_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "openai": ("DOCINTEL_LLM_API_KEY", "OPENAI_API_KEY"),
-    "ollama": ("DOCINTEL_LLM_API_KEY", "OLLAMA_API_KEY"),
 }
 
 
@@ -43,8 +39,6 @@ def fetch_provider_models(
     if normalized not in SUPPORTED_PROVIDERS:
         raise ValueError(f"Unsupported provider '{provider}'.")
 
-    if normalized == "ollama":
-        return _fetch_ollama_models(base_url)
     if normalized == "groq":
         return _fetch_openai_compatible_models(
             api_key,
@@ -65,26 +59,6 @@ def fetch_provider_models(
 
 def _fallback(provider: str, warning: str) -> tuple[list[str], str, str | None]:
     return sorted(_DEFAULT_MODELS.get(provider, [])), "fallback", warning
-
-
-def _fetch_ollama_models(base_url: str) -> tuple[list[str], str, str | None]:
-    ollama_root = base_url.rstrip("/").removesuffix("/v1") or os.getenv(
-        "DOCINTEL_LLM_BASE_URL", "http://127.0.0.1:11434/v1"
-    ).removesuffix("/v1")
-    try:
-        response = requests.get(f"{ollama_root}/api/tags", timeout=8)
-        response.raise_for_status()
-        payload = response.json()
-        models = [
-            str(item.get("name", ""))
-            for item in payload.get("models", [])
-            if item.get("name")
-        ]
-        if not models:
-            return _fallback("ollama", "Ollama returned no models.")
-        return sorted(models), "ollama", None
-    except Exception as exc:
-        return _fallback("ollama", str(exc))
 
 
 def _fetch_openai_compatible_models(

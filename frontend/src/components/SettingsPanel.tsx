@@ -13,9 +13,9 @@ import { EntityChipPicker } from "./EntityChipPicker";
 import { ModelPickerModal } from "./ModelPickerModal";
 import { toEntityOptions } from "../lib/entityLabels";
 
-const PROVIDERS = ["ollama", "groq", "gemini", "openai"];
+const PROVIDERS = ["groq", "gemini", "openai"];
 const PRESET_ORDER = ["general", "healthcare", "financial", "legal"];
-const LIVE_MODEL_PROVIDERS = new Set(["ollama", "groq", "gemini", "openai"]);
+const LIVE_MODEL_PROVIDERS = new Set(["groq", "gemini", "openai"]);
 
 function titleCase(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -24,7 +24,7 @@ function titleCase(value: string): string {
 export function SettingsPanel() {
   const { tenantSlug, isAdmin } = useTenant();
   const { user: authUser } = useAuth();
-  const [llmProvider, setLlmProvider] = useState("ollama");
+  const [llmProvider, setLlmProvider] = useState("groq");
   const [llmModel, setLlmModel] = useState("");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
@@ -100,7 +100,7 @@ export function SettingsPanel() {
         if (cancelled) {
           return;
         }
-        const provider = String(settings.llm_provider ?? "ollama");
+        const provider = String(settings.llm_provider ?? "groq");
         const baseUrl = String(settings.llm_base_url ?? "");
         setLlmProvider(provider);
         setLlmModel(String(settings.llm_model ?? ""));
@@ -262,7 +262,7 @@ export function SettingsPanel() {
               type="text"
               value={llmBaseUrl}
               onChange={(event) => setLlmBaseUrl(event.target.value)}
-              placeholder="http://ollama:11434/v1"
+              placeholder="https://api.groq.com/openai/v1"
             />
           </label>
 

@@ -57,9 +57,9 @@ def init_database() -> None:
                     """,
                     (
                         tenant_id,
-                        "ollama",
-                        "llama3.2",
-                        "http://ollama:11434/v1",
+                        "groq",
+                        "llama-3.3-70b-versatile",
+                        "https://api.groq.com/openai/v1",
                         default_entities,
                     ),
                 )

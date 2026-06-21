@@ -149,7 +149,7 @@ def test_plan_annotation_patterns_parses_llm_json(monkeypatch):
         lambda: type(
             "Cfg",
             (),
-            {"provider": "ollama", "api_key": "x", "model": "test", "base_url": None},
+            {"provider": "groq", "api_key": "x", "model": "test", "base_url": None},
         )(),
     )
 

@@ -28,9 +28,9 @@ def test_worker_job_restores_tenant_context(fake_redis, monkeypatch):
     init_database()
     update_tenant_settings(
         "finance-hub",
-        llm_provider="ollama",
-        llm_model="llama3.2",
-        llm_base_url="http://ollama:11434/v1",
+        llm_provider="groq",
+        llm_model="llama-3.3-70b-versatile",
+        llm_base_url="https://api.groq.com/openai/v1",
         llm_api_key=None,
         pii_entities=["EMAIL_ADDRESS"],
     )

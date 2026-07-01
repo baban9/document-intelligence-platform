@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Intelligence Settings</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body {
+        width: auto;
+        max-width: 520px;
+        margin: 24px auto;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+      input,
+      select {
+        padding: 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.9rem;
+      }
+      .help {
+        font-size: 0.8rem;
+        color: #64748b;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <h1>Extension settings</h1>
+      <p class="muted">Point the extension at your Document Intelligence API.</p>
+    </header>
+
+    <form id="options-form" class="panel">
+      <label class="field">
+        <span>API base URL</span>
+        <input id="api-base" type="url" placeholder="http://127.0.0.1:5000" required />
+      </label>
+
+      <label class="field">
+        <span>API key or JWT</span>
+        <input id="api-key" type="password" placeholder="Bearer token" />
+        <span class="help">Use a value from DOCINTEL_API_KEYS in .env, or sign in via the web UI and paste a JWT.</span>
+      </label>
+
+      <label class="field">
+        <span>Tenant slug</span>
+        <input id="tenant-slug" type="text" placeholder="admin" />
+      </label>
+
+      <label class="field">
+        <span>PII vertical preset</span>
+        <select id="vertical">
+          <option value="general">General</option>
+          <option value="healthcare">Healthcare</option>
+          <option value="financial">Financial</option>
+          <option value="legal">Legal</option>
+        </select>
+      </label>
+
+      <button type="submit" class="primary">Save</button>
+      <button id="test-connection" type="button" class="secondary">Test connection</button>
+      <p id="options-status" class="status muted">Not tested yet.</p>
+    </form>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

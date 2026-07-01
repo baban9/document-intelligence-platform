@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Intelligence</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>Document Intelligence</h1>
+      <p class="muted">Inconsistencies and sensitive data on this page</p>
+    </header>
+
+    <section class="actions">
+      <button id="scan-page" class="primary">Scan page</button>
+      <button id="scan-selection" class="secondary">Scan selection</button>
+    </section>
+
+    <p id="status" class="status muted">Connect your API in Options, then scan.</p>
+
+    <section id="summary" class="summary hidden"></section>
+
+    <section id="integrity-section" class="panel hidden">
+      <h2>Inconsistencies</h2>
+      <div id="integrity-list" class="finding-list"></div>
+    </section>
+
+    <section id="pii-section" class="panel hidden">
+      <div class="panel-header-row">
+        <h2>Sensitive information</h2>
+        <button id="highlight-pii" class="link-button" type="button">Highlight on page</button>
+      </div>
+      <div id="pii-list" class="finding-list"></div>
+    </section>
+
+    <footer class="footer">
+      <a id="open-options" href="#">Settings</a>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -55,6 +55,8 @@ Stop everything with `make down`. OCR for scanned PDFs uses the same base image;
 
 The web UI is a React app (nginx in Docker). Local hot reload: `make ui-dev` on http://127.0.0.1:5173. Async jobs need Redis and the worker service in compose, or `make run-worker` locally.
 
+**Chrome extension:** Scan the current browser page or a selection for inconsistencies and sensitive information. See `chrome-extension/README.md` and load unpacked from `chrome://extensions`.
+
 **pip install:**
 
 ```bash
